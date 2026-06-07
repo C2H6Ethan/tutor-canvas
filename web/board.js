@@ -36,6 +36,112 @@
   const mathToken = (i) => "xsbmathx" + i + "xsbmathx";
   const MATH_RE = /xsbmathx(\d+)xsbmathx/g;
 
+  /* Minimal sanitizer for author-supplied inline SVG (```svg fences). The
+   * content is local and author-written, but we still strip the obvious script
+   * vectors so the skill is safe to ship. */
+  function sanitizeSvg(s) {
+    return String(s)
+      .replace(/<\s*script[\s\S]*?<\s*\/\s*script\s*>/gi, "")
+      .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+      .replace(/(href|xlink:href)\s*=\s*("javascript:[^"]*"|'javascript:[^']*')/gi, "");
+  }
+
+  /* ---- ```diagram vector-spec renderer -------------------------------------
+   * A compact JSON spec → SVG, so a tutoring session can draw force/vector
+   * diagrams from a few lines instead of hand-writing SVG. Coordinates use MATH
+   * convention: x right, y UP, origin at bottom-left of the canvas; angles in
+   * degrees CCW from +x. See SKILL.md for the authoring contract. */
+  const DIAG_COLORS = {
+    red: "#e0564a", blue: "#6ea8fe", green: "#3ddc84",
+    gray: "#9aa3b2", grey: "#9aa3b2", yellow: "#e6c84a",
+    purple: "#b98cff", white: "#e6e8ee",
+  };
+  function diagColor(c) { return DIAG_COLORS[c] || c || "#e6e8ee"; }
+  function esc(s) {
+    return String(s).replace(/[<>&"]/g, (c) =>
+      ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c]));
+  }
+  function renderDiagram(specText) {
+    const spec = JSON.parse(specText);
+    const w = spec.w || 420, h = spec.h || 300;
+    const Y = (y) => h - y;            // flip to SVG (y-down)
+    const parts = [];
+    const stroke = (col, sw, dash) =>
+      'stroke="' + diagColor(col) + '" stroke-width="' + (sw || 2) + '"' +
+      (dash ? ' stroke-dasharray="6 4"' : "");
+
+    // ground line
+    if (spec.ground) {
+      const gy = spec.ground === true ? h / 2 : spec.ground;
+      parts.push('<line x1="0" y1="' + Y(gy) + '" x2="' + w + '" y2="' + Y(gy) +
+        '" ' + stroke("#3a4150", 2) + "/>");
+    }
+    // free segments: {a:[x,y], b:[x,y], color?, dash?, width?}
+    (spec.segments || []).forEach((s) => {
+      parts.push('<line x1="' + s.a[0] + '" y1="' + Y(s.a[1]) + '" x2="' +
+        s.b[0] + '" y2="' + Y(s.b[1]) + '" ' + stroke(s.color, s.width, s.dash) + "/>");
+    });
+    // angle arcs: {at:[x,y], r?, from:deg, to:deg, label?, color?}
+    (spec.arcs || []).forEach((a) => {
+      const r = a.r || 26, cx = a.at[0], cy = a.at[1];
+      const f = (a.from || 0) * Math.PI / 180, t = (a.to || 0) * Math.PI / 180;
+      const x1 = cx + r * Math.cos(f), y1 = cy + r * Math.sin(f);
+      const x2 = cx + r * Math.cos(t), y2 = cy + r * Math.sin(t);
+      const large = Math.abs((a.to || 0) - (a.from || 0)) > 180 ? 1 : 0;
+      parts.push('<path d="M ' + x1 + " " + Y(y1) + " A " + r + " " + r +
+        " 0 " + large + ' 0 ' + x2 + " " + Y(y2) + '" fill="none" ' +
+        stroke(a.color || "#9aa3b2", 1.5) + "/>");
+      if (a.label) {
+        const m = (f + t) / 2, lr = r + 12;
+        parts.push('<text x="' + (cx + lr * Math.cos(m)) + '" y="' +
+          (Y(cy + lr * Math.sin(m)) + 4) + '" fill="' + diagColor(a.color || "#9aa3b2") +
+          '" font-size="14" text-anchor="middle">' + esc(a.label) + "</text>");
+      }
+    });
+    // vectors (arrows): {deg, mag, label?, color?, from?:[x,y]}
+    const O = spec.origin || [w / 2, h / 2];
+    (spec.vectors || []).forEach((v) => {
+      const from = v.from || O;
+      const a = (v.deg || 0) * Math.PI / 180;
+      const ex = from[0] + (v.mag || 60) * Math.cos(a);
+      const ey = from[1] + (v.mag || 60) * Math.sin(a);
+      const col = diagColor(v.color);
+      // shaft
+      parts.push('<line x1="' + from[0] + '" y1="' + Y(from[1]) + '" x2="' + ex +
+        '" y2="' + Y(ey) + '" ' + stroke(v.color, 2.5) + "/>");
+      // arrowhead (filled triangle aligned to the vector)
+      const ah = 10, aw = 5;
+      const ux = Math.cos(a), uy = Math.sin(a), px = -uy, py = ux;
+      const bx = ex - ah * ux, by = ey - ah * uy;
+      const p1 = ex + "," + Y(ey);
+      const p2 = (bx + aw * px) + "," + Y(by + aw * py);
+      const p3 = (bx - aw * px) + "," + Y(by - aw * py);
+      parts.push('<polygon points="' + p1 + " " + p2 + " " + p3 +
+        '" fill="' + col + '"/>');
+      if (v.label) {
+        parts.push('<text x="' + (ex + 8 * ux) + '" y="' + (Y(ey + 8 * uy) - 4) +
+          '" fill="' + col + '" font-size="15" font-style="italic" text-anchor="middle">' +
+          esc(v.label) + "</text>");
+      }
+    });
+    // points: {at:[x,y], label?, color?}
+    (spec.points || []).forEach((p) => {
+      parts.push('<circle cx="' + p.at[0] + '" cy="' + Y(p.at[1]) + '" r="4" fill="' +
+        diagColor(p.color) + '"/>');
+      if (p.label) {
+        parts.push('<text x="' + (p.at[0] + 8) + '" y="' + (Y(p.at[1]) - 8) +
+          '" fill="' + diagColor(p.color) + '" font-size="14">' + esc(p.label) + "</text>");
+      }
+    });
+    // free labels: {at:[x,y], text, color?}
+    (spec.labels || []).forEach((l) => {
+      parts.push('<text x="' + l.at[0] + '" y="' + Y(l.at[1]) + '" fill="' +
+        diagColor(l.color) + '" font-size="14">' + esc(l.text) + "</text>");
+    });
+    return '<svg viewBox="0 0 ' + w + " " + h + '" width="' + w +
+      '" role="img">' + parts.join("") + "</svg>";
+  }
+
   function setStatus(cls, text) {
     statusEl.className = cls;
     statusEl.textContent = text;
@@ -88,6 +194,21 @@
           encodeURIComponent(token.content) +
           '"></div>\n'
         );
+      }
+      // ```svg blocks: inline vector/physics diagrams (arrows, angle arcs,
+      // proportions) that ASCII can't express. Sanitized since markdown-it has
+      // html:false and would otherwise escape the markup entirely.
+      if (info === "svg") {
+        return '<div class="sb-svg">' + sanitizeSvg(token.content) + "</div>\n";
+      }
+      // ```diagram blocks: compact JSON vector-spec → rendered SVG.
+      if (info === "diagram") {
+        try {
+          return '<div class="sb-svg">' + renderDiagram(token.content) + "</div>\n";
+        } catch (e) {
+          return '<div class="sb-error">diagram error: ' +
+            md.utils.escapeHtml(String(e)) + "</div>\n";
+        }
       }
       return defaultFence(tokens, idx, options, env, self);
     };

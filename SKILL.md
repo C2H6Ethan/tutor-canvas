@@ -8,9 +8,10 @@ description: >-
   partial derivatives, vectors/matrices, aligned equations, \underbrace, Greek
   letters), step-by-step derivations, exam/homework tutoring, or any answer that
   would be clearer with rendered formulas, tables, diagrams, or highlighted
-  code. Triggers include exam prep, physics, math, engineering, algorithms,
-  worked solutions, "explain/derive/show the steps", or any request where the
-  user is reading along in a browser. Start the board, then push markdown+LaTeX
+  code, or physics force/free-body/vector diagrams (arrows + angles). Triggers
+  include exam prep, physics, math, engineering, algorithms, worked solutions,
+  "explain/derive/show the steps", or any request where the user is reading along
+  in a browser. Start the board, then push markdown+LaTeX (and ```diagram specs)
   to its content file as you teach.
 ---
 
@@ -94,8 +95,59 @@ they share one server.
 - **Markdown**: headings, **bold**, lists, blockquotes, `---` rules.
 - **Tables** (GitHub pipe tables).
 - **Code** fenced blocks with a language tag get syntax highlighting.
-- **Diagrams**: fenced ```mermaid blocks render as SVG.
+- **Diagrams**: fenced ```mermaid blocks render as SVG (flowcharts, sequence,
+  state). For **physics / vector / free-body diagrams** use ```diagram (below).
 - **Images**: reference files served from the project; or use absolute URLs.
+
+## Vector / physics diagrams — ```diagram
+
+For force diagrams, free-body diagrams, inclines, and any "arrows + angles"
+figure, **use a ```diagram fence containing a JSON spec** — far cheaper than
+hand-writing SVG, and it renders real arrows and angle arcs.
+
+**Coordinate contract (read carefully):**
+- Coordinates are `[x, y]` in **pixels from the BOTTOM-LEFT**, with **y pointing
+  UP** (math convention, not SVG). The renderer flips y for you.
+- Angles (`deg`) are **degrees counter-clockwise from the +x axis** (east=0,
+  north=90, west=180, south=270). So a force at angle θ above horizontal pointing
+  up-right is `deg: θ`; down-left is `deg: 180+θ`; straight down (gravity) is
+  `deg: 270`.
+- Colors: names (`red blue green gray yellow purple white`) or any CSS color.
+
+**Spec fields (all optional except where noted):**
+
+````
+```diagram
+{
+  "w": 420, "h": 320,                      // canvas size (default 420x300)
+  "ground": 60,                            // draw a horizontal ground line at y=60
+                                           //   (true = mid-canvas)
+  "origin": [250, 200],                    // default start point for vectors (default: center)
+  "vectors": [                             // arrows (force diagrams)
+    {"deg": 225, "mag": 110, "label": "F_S", "color": "red"},
+    {"deg": 80,  "mag": 90,  "label": "F_A", "color": "blue"},
+    {"deg": 270, "mag": 95,  "label": "mg",  "color": "gray", "from": [250,200]}
+  ],
+  "segments": [                            // plain lines (arm, rope, incline, ground)
+    {"a": [110,60], "b": [250,200], "color": "red", "dash": true, "width": 2}
+  ],
+  "arcs": [                                // angle markers
+    {"at": [110,60], "from": 0, "to": 45, "label": "β", "r": 26, "color": "gray"}
+  ],
+  "points": [ {"at": [250,200], "label": "m", "color": "white"} ],
+  "labels": [ {"at": [20,300], "text": "crane", "color": "gray"} ]
+}
+```
+````
+
+Notes:
+- `mag` is arrow length in px. Keep arrows + labels inside `w`×`h` (content
+  outside the canvas is clipped) — bump `h`/`w` or shrink `mag` if a label clips.
+- A `vector`'s tail is `from` if given, else `origin`. End = tail +
+  `mag·(cos deg, sin deg)`.
+- Invalid JSON shows an inline error on the board, so iterate freely.
+- For anything the spec can't express, a raw ```svg fence is also rendered
+  (sanitized) — write SVG directly.
 
 ## Lifecycle commands
 
