@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# Install study-board as a user-level Claude Code skill.
+# Install tutor-canvas as a user-level Claude Code skill.
 #
 #   1. Vendor web assets if assets/ is empty (needs network once).
 #   2. Ensure ~/.claude/skills/ exists.
-#   3. Symlink ~/.claude/skills/study-board -> this repo.
+#   3. Symlink ~/.claude/skills/tutor-canvas -> this repo.
 #
 # Refuses to clobber a pre-existing, non-symlink skill of the same name.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SKILLS_DIR="${CLAUDE_SKILLS_DIR:-$HOME/.claude/skills}"
-LINK="$SKILLS_DIR/study-board"
+LINK="$SKILLS_DIR/tutor-canvas"
 
-echo "study-board repo: $REPO"
+echo "tutor-canvas repo: $REPO"
 
 # 1. Assets ----------------------------------------------------------------
 if [ -z "$(ls -A "$REPO/assets" 2>/dev/null | grep -v MANIFEST.json || true)" ]; then

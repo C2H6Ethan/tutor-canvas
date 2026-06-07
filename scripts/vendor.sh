@@ -28,7 +28,7 @@ fetch() {
   curl -fsSL "$url" -o "$ASSETS/$dest"
 }
 
-echo "Vendoring study-board assets into $ASSETS"
+echo "Vendoring tutor-canvas assets into $ASSETS"
 
 # markdown-it (UMD build exposes window.markdownit)
 fetch "$JSD/markdown-it@${MARKDOWNIT_VER}/dist/markdown-it.min.js" "markdown-it.min.js"

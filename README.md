@@ -1,6 +1,6 @@
-# study-board
+# tutor-canvas
 
-A live, browser-based **study board** for Claude Code tutoring sessions. Claude
+A live, browser-based **tutor canvas** for Claude Code tutoring sessions. Claude
 writes markdown + LaTeX to a content file; a local page re-renders it about once
 a second so you can actually *read* the math the terminal can't show.
 
@@ -23,14 +23,14 @@ This is a **user-level** Claude Code skill. Install it by symlinking the repo
 into your skills directory:
 
 ```bash
-git clone <repo> ~/Code/study-board     # or wherever you keep it
-~/Code/study-board/scripts/install.sh   # vendors assets + symlinks the skill
+git clone <repo> ~/Code/tutor-canvas     # or wherever you keep it
+~/Code/tutor-canvas/scripts/install.sh   # vendors assets + symlinks the skill
 ```
 
 `install.sh`:
 1. runs `scripts/vendor.sh` if `assets/` is empty (needs network once),
 2. creates `~/.claude/skills/` if missing,
-3. symlinks `~/.claude/skills/study-board -> <repo>` (refusing to clobber an
+3. symlinks `~/.claude/skills/tutor-canvas -> <repo>` (refusing to clobber an
    existing unrelated skill).
 
 After that the skill is available in every Claude Code session.
@@ -44,7 +44,7 @@ The `SKILL.md` description auto-invokes the skill for math/diagram-heavy
 tutoring. In a session Claude will:
 
 ```bash
-SKILL=~/.claude/skills/study-board
+SKILL=~/.claude/skills/tutor-canvas
 python3 "$SKILL/scripts/board.py" start    # idempotent; prints the URL
 ```
 
@@ -103,7 +103,7 @@ See `SKILL.md` for the full authoring contract of all three.
 You can use it without Claude too:
 
 ```bash
-B="python3 ~/.claude/skills/study-board/scripts/board.py"
+B="python3 ~/.claude/skills/tutor-canvas/scripts/board.py"
 $B open                      # start + open in browser (macOS)
 $B path                      # where the content file lives
 echo '# Hi $\sqrt{2}$' | $B push
@@ -132,7 +132,7 @@ Global flags: `--project <dir>` (board identity, defaults to cwd),
 
 - **Assets** (the board UI + vendored KaTeX/markdown-it/highlight.js/mermaid)
   live in this skill dir and are read-only and shared.
-- **Content** lives per-project in `<project>/.study-board/<name>.md` so
+- **Content** lives per-project in `<project>/.tutor-canvas/<name>.md` so
   concurrent projects/sessions get independent boards on independent ports.
 - A tiny `http.server` serves the UI at `/` and routes `/board.md` to the active
   content file. The page polls `/board.md` ~1×/sec and patches only the changed
@@ -145,7 +145,7 @@ markdown-it + pre-extracted KaTeX fixes it at the root).
 ## Develop / contribute
 
 ```
-study-board/
+tutor-canvas/
 ├── SKILL.md            # agent-facing instructions + auto-invoke description
 ├── README.md           # this file
 ├── DESIGN.md           # architecture decisions & tradeoffs
@@ -172,7 +172,7 @@ the updated `assets/`.
 This skill is structured to drop into the ECC skill collection: a single
 self-contained `SKILL.md` with a precise auto-invoke `description`, bundled
 assets, and helper scripts with no external runtime beyond `python3`. It would
-live as `skills/study-board/` in ECC; `install.sh`/`vendor.sh` map onto ECC's
+live as `skills/tutor-canvas/` in ECC; `install.sh`/`vendor.sh` map onto ECC's
 per-skill setup conventions. The MIT license matches.
 
 ## License

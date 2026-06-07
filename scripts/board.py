@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""study-board CLI — lifecycle + content management for the live study board.
+"""tutor-canvas CLI — lifecycle + content management for the live tutor canvas.
 
 Subcommands
 -----------
@@ -20,7 +20,7 @@ are read-only and shared. *Content* lives **per project**: by default a board
 is keyed to the current working directory, so two projects/sessions get two
 independent boards on two ports and never clobber each other's content.
 
-State for every running board is recorded under ``~/.cache/study-board`` so
+State for every running board is recorded under ``~/.cache/tutor-canvas`` so
 ``status``/``stop`` work from any terminal, even after the launching shell has
 closed.
 """
@@ -44,7 +44,7 @@ from pathlib import Path
 SKILL_DIR = Path(__file__).resolve().parent.parent
 WEB_ROOT = SKILL_DIR / "web"
 
-STATE_DIR = Path(os.environ.get("STUDY_BOARD_STATE", Path.home() / ".cache" / "study-board"))
+STATE_DIR = Path(os.environ.get("TUTOR_CANVAS_STATE", Path.home() / ".cache" / "tutor-canvas"))
 DEFAULT_PORT = 8765
 PORT_RANGE = 50  # scan DEFAULT_PORT .. DEFAULT_PORT+PORT_RANGE for a free port
 
@@ -60,13 +60,13 @@ def _board_key(project: Path) -> str:
 def content_path_for(project: Path, name: str = "board") -> Path:
     """Where the markdown content for a board lives.
 
-    Default: ``<project>/.study-board/<name>.md``. Kept inside the project so
+    Default: ``<project>/.tutor-canvas/<name>.md``. Kept inside the project so
     it travels with the work and is easy for the agent to find, but in a
     dedicated dotdir so it doesn't pollute the project root. Add
-    ``.study-board/`` to the project's .gitignore (the skill does this on
+    ``.tutor-canvas/`` to the project's .gitignore (the skill does this on
     first start).
     """
-    return project.resolve() / ".study-board" / f"{name}.md"
+    return project.resolve() / ".tutor-canvas" / f"{name}.md"
 
 
 def _state_file(key: str) -> Path:
@@ -124,7 +124,7 @@ def _running(state: dict | None) -> bool:
 def _ensure_gitignore(project: Path) -> None:
     """Best-effort: keep the content dotdir out of the user's git history."""
     gi = project / ".gitignore"
-    line = ".study-board/"
+    line = ".tutor-canvas/"
     try:
         existing = gi.read_text() if gi.exists() else ""
         if line not in existing.split():
@@ -308,7 +308,7 @@ def cmd_open(args) -> int:
     return 0
 
 
-_WELCOME = """# Live Study Board
+_WELCOME = """# Live Tutor Canvas
 
 Waiting for content. The board updates automatically about once per second.
 """

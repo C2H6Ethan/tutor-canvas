@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""study-board static server.
+"""tutor-canvas static server.
 
-A tiny, dependency-free HTTP server that backs the live study board.
+A tiny, dependency-free HTTP server that backs the live tutor canvas.
 
 Design goals:
   * Serve the bundled board UI (``web/`` inside the skill dir) at ``/``.
@@ -10,7 +10,7 @@ Design goals:
     from the content location so projects never collide and the skill dir
     stays read-only.
   * Be idempotent and lifecycle-aware: a small state file records the pid,
-    port and content path so ``study-board status``/``stop`` work across
+    port and content path so ``tutor-canvas status``/``stop`` work across
     terminals and after the launching shell has exited.
 
 This module is normally invoked by ``board.py`` (the CLI), but can be run
@@ -104,7 +104,7 @@ def serve(web_root: Path, content_path: Path, port: int, host: str = "127.0.0.1"
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="study-board static server")
+    p = argparse.ArgumentParser(description="tutor-canvas static server")
     p.add_argument("--web-root", required=True, type=Path)
     p.add_argument("--content", required=True, type=Path)
     p.add_argument("--port", required=True, type=int)

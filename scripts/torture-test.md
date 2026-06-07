@@ -1,4 +1,4 @@
-# study-board torture test
+# tutor-canvas torture test
 
 A single file exercising every rendering path. If this renders cleanly in the
 browser, the skill works.

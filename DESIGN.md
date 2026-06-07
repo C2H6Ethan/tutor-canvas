@@ -1,6 +1,6 @@
-# study-board — Design & Architecture Decisions
+# tutor-canvas — Design & Architecture Decisions
 
-This document records the architectural decisions for the `study-board` skill
+This document records the architectural decisions for the `tutor-canvas` skill
 and the tradeoffs behind each. It is the design deliverable; `README.md` is the
 user-facing doc and `SKILL.md` is the agent-facing instruction set.
 
@@ -92,7 +92,7 @@ exclusives (e.g. `\require`, some physics packages) are not needed here.
   (`web/` + `assets/`). They are read-only, shared across all projects, and ship
   with the skill — ideal for a distributable artifact and for offline use. No
   scaffolding into the user's project, no per-project copies to drift.
-- **Content** lives **per project**: `<project>/.study-board/<name>.md`.
+- **Content** lives **per project**: `<project>/.tutor-canvas/<name>.md`.
   - Keyed to the project so multiple projects / concurrent sessions get
     independent boards on independent ports and never clobber each other.
   - Inside a dotdir (not the project root) so it doesn't pollute the workspace;
@@ -117,7 +117,7 @@ A small `server.py` (stdlib `http.server`, threaded) plus a `board.py` CLI that
 owns lifecycle:
 
 - **Idempotent `start`:** checks a per-project state file
-  (`~/.cache/study-board/<key>.json`) and a live PID; if already running, prints
+  (`~/.cache/tutor-canvas/<key>.json`) and a live PID; if already running, prints
   the existing URL instead of starting a second server.
 - **Port-in-use handling:** scans upward from `8765` for a free port.
 - **Survives the shell:** the server is spawned detached
@@ -158,10 +158,10 @@ All commands are pure `python3` stdlib — no node runtime, no pip installs.
 
 ## Decision 6 — Scope & install
 
-User-level skill (`~/.claude/skills/study-board/`) because it's useful across
+User-level skill (`~/.claude/skills/tutor-canvas/`) because it's useful across
 all of Ethan's projects. Installed as a **symlink** to the git repo at
-`/Users/ethan/Code/study-board` so edits in the repo are live immediately. The
-installer refuses to overwrite a pre-existing non-symlink `study-board` skill.
+`/Users/ethan/Code/tutor-canvas` so edits in the repo are live immediately. The
+installer refuses to overwrite a pre-existing non-symlink `tutor-canvas` skill.
 
 ## Vendoring & offline
 

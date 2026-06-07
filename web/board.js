@@ -1,4 +1,4 @@
-/* study-board live renderer.
+/* tutor-canvas live renderer.
  *
  * Why this stack (see DESIGN.md for the full rationale):
  *   markdown-it + markdown-it-texmath + KaTeX.

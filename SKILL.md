@@ -1,5 +1,5 @@
 ---
-name: study-board
+name: tutor-canvas
 description: >-
   Render rich tutoring/explanation content in a live-updating browser board so
   the user can actually read LaTeX math, matrices, tables, syntax-highlighted
@@ -15,7 +15,7 @@ description: >-
   to its content file as you teach.
 ---
 
-# study-board
+# tutor-canvas
 
 A live browser "board" for math-heavy tutoring. You write markdown + LaTeX to a
 content file; a local server serves a page that re-renders it about once per
@@ -46,7 +46,7 @@ Tell the user to open the printed URL (e.g. http://127.0.0.1:8765/). On macOS
 you can open it for them with `board.py open` instead of `start`.
 
 `$SKILL` here means this skill's directory. If you don't know it, it's the
-folder containing this SKILL.md (typically `~/.claude/skills/study-board`).
+folder containing this SKILL.md (typically `~/.claude/skills/tutor-canvas`).
 
 ## Pushing content (the main loop)
 
@@ -55,7 +55,7 @@ The content lives in a markdown file. Discover its path, then write to it.
 ```bash
 # Where is the content file?
 python3 "$SKILL/scripts/board.py" path
-# -> /your/project/.study-board/board.md
+# -> /your/project/.tutor-canvas/board.md
 
 # Replace the whole board:
 python3 "$SKILL/scripts/board.py" push --file solution.md
@@ -265,12 +265,12 @@ python3 "$SKILL/scripts/board.py" clear    # reset content to empty
 `start` is idempotent: if a board is already running for this project it just
 prints the existing URL. Port conflicts are handled automatically (it scans
 upward from 8765). The server survives the launching shell (it runs detached),
-and state is tracked in `~/.cache/study-board/` so `status`/`stop` work from any
+and state is tracked in `~/.cache/tutor-canvas/` so `status`/`stop` work from any
 terminal.
 
 ## Notes
 
 - Requires only `python3` (standard library) — no installs, no node runtime.
 - Assets are vendored under this skill's `assets/`; the board works offline.
-- The per-project content lives in `<project>/.study-board/` (auto-added to the
+- The per-project content lives in `<project>/.tutor-canvas/` (auto-added to the
   project's `.gitignore`).

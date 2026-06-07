@@ -7,7 +7,7 @@ __pycache__/
 *.pyc
 
 # Per-project board content (never committed; lives in the *user's* project)
-.study-board/
+.tutor-canvas/
 
 # Server runtime state (lives in ~/.cache, but ignore locally just in case)
 .cache/

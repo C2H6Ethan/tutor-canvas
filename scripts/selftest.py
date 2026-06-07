@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline self-test for study-board.
+"""Offline self-test for tutor-canvas.
 
 Verifies the parts that don't need a browser:
   * the server starts, serves the UI at /, and routes /board.md to the active
@@ -66,7 +66,7 @@ def main() -> int:
         # path
         cp = run("--project", str(proj), "path")
         content_path = Path(cp.stdout.strip())
-        check("path resolves under project/.study-board", ".study-board" in str(content_path))
+        check("path resolves under project/.tutor-canvas", ".tutor-canvas" in str(content_path))
 
         # start
         cp = run("--project", str(proj), "start", "--quiet")
