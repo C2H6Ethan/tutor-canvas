@@ -23,7 +23,7 @@ This is a **user-level** Claude Code skill. Install it by symlinking the repo
 into your skills directory:
 
 ```bash
-git clone <repo> ~/Code/tutor-canvas     # or wherever you keep it
+git clone https://github.com/C2H6Ethan/tutor-canvas.git ~/Code/tutor-canvas
 ~/Code/tutor-canvas/scripts/install.sh   # vendors assets + symlinks the skill
 ```
 
