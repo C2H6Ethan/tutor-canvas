@@ -61,6 +61,23 @@
     return String(s).replace(/[<>&"]/g, (c) =>
       ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c]));
   }
+  // Stable, short hash of a string (djb2). Used to key interactive widgets so
+  // the structural patch can recognize "the same quiz" across re-renders and
+  // preserve its live state instead of rebuilding it from scratch.
+  function hashStr(s) {
+    let h = 5381;
+    for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+    return (h >>> 0).toString(36);
+  }
+  /* Emit a stable-keyed, empty placeholder for an interactive widget fence
+   * (quiz / reveal / flashcard). The real DOM is built later by hydrateWidgets;
+   * the data-key (hash of the spec) lets patch() preserve a hydrated widget's
+   * live state across re-renders, and data-widget selects the builder. */
+  function widgetPlaceholder(kind, content) {
+    return '<div class="sb-' + kind + '" data-widget="' + kind +
+      '" data-key="' + kind + "-" + hashStr(content) +
+      '" data-src="' + encodeURIComponent(content) + '"></div>\n';
+  }
   function renderDiagram(specText) {
     const spec = JSON.parse(specText);
     const w = spec.w || 420, h = spec.h || 300;
@@ -210,6 +227,17 @@
             md.utils.escapeHtml(String(e)) + "</div>\n";
         }
       }
+      // Interactive widget fences: compact JSON → a stateful widget. We can't
+      // emit the buttons-with-handlers here (html:false forbids author markup,
+      // and inline handlers are an XSS vector). Instead we emit a stable-keyed,
+      // empty placeholder; hydrateWidgets() builds the real DOM and attaches
+      // listeners afterwards. patch() preserves live state via the data-key.
+      //   quiz      — clickable multiple-choice with feedback + score
+      //   reveal    — try-then-reveal answer (no grading)
+      //   flashcard — flip deck (front/back)
+      if (info === "quiz" || info === "reveal" || info === "flashcard") {
+        return widgetPlaceholder(info, token.content);
+      }
       return defaultFence(tokens, idx, options, env, self);
     };
 
@@ -246,6 +274,247 @@
     }
   }
 
+  /* ---- interactive widgets (quiz / reveal / flashcard) ---------------------
+   * Each is built in JS so click handlers are attached programmatically
+   * (html:false stays on; no inline handlers ever touch the markup). Widget
+   * state lives in the DOM/closure and is preserved across board re-renders by
+   * the data-key check in patch(). hydrateWidgets dispatches by data-widget. */
+  const WIDGET_BUILDERS = {
+    quiz: buildQuiz,
+    reveal: buildReveal,
+    flashcard: buildFlashcard,
+  };
+  function hydrateWidgets(root) {
+    root.querySelectorAll("[data-widget][data-src]").forEach((node) => {
+      const kind = node.getAttribute("data-widget");
+      const src = decodeURIComponent(node.getAttribute("data-src") || "");
+      node.removeAttribute("data-src"); // mark hydrated; never rebuilt in place
+      const build = WIDGET_BUILDERS[kind];
+      try {
+        if (!build) throw new Error("unknown widget: " + kind);
+        build(node, JSON.parse(src));
+      } catch (e) {
+        node.innerHTML = '<div class="sb-error">' + kind + " error: " +
+          md.utils.escapeHtml(String(e)) + "</div>";
+      }
+    });
+  }
+
+  // Fisher–Yates shuffle in place; shared by quiz/flashcard `shuffle`.
+  function shuffleInPlace(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function buildQuiz(node, spec) {
+    const questions = (spec.questions || []).slice();
+    if (spec.shuffle) shuffleInPlace(questions);
+    const total = questions.length;
+    const answered = new Array(total).fill(false);
+    let correct = 0;
+
+    node.innerHTML = "";
+    const head = document.createElement("div");
+    head.className = "sb-quiz-head";
+    const title = document.createElement("div");
+    title.className = "sb-quiz-title";
+    title.innerHTML = renderRich(spec.title || "Quiz", true);
+    const score = document.createElement("div");
+    score.className = "sb-quiz-score";
+    head.appendChild(title);
+    head.appendChild(score);
+    node.appendChild(head);
+
+    // Completion summary; announced to assistive tech via aria-live.
+    const summary = document.createElement("div");
+    summary.className = "sb-quiz-summary";
+    summary.setAttribute("aria-live", "polite");
+    summary.hidden = true;
+
+    function updateScore() {
+      const done = answered.filter(Boolean).length;
+      const finished = done === total;
+      score.textContent = correct + " / " + total;
+      // Green only at full marks — "finished" alone is not "good".
+      score.classList.toggle("perfect", finished && correct === total);
+      summary.hidden = !finished;
+      if (finished) {
+        summary.textContent = correct === total
+          ? "Perfect — " + correct + " / " + total + " ✓"
+          : "Done — " + correct + " / " + total + " correct";
+        summary.classList.toggle("perfect", correct === total);
+      }
+    }
+    updateScore();
+
+    questions.forEach((q, qi) => {
+      const card = document.createElement("div");
+      card.className = "sb-quiz-q";
+      const prompt = document.createElement("div");
+      prompt.className = "sb-quiz-prompt";
+      prompt.innerHTML = "<span class='sb-quiz-n'>" + (qi + 1) + ".</span> " +
+        renderRich(q.q || "", true);
+      card.appendChild(prompt);
+
+      const explain = document.createElement("div");
+      explain.className = "sb-quiz-explain";
+      explain.hidden = true;
+      if (q.explain) explain.innerHTML = renderRich(q.explain, true);
+
+      (q.choices || []).forEach((choice, ci) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "sb-quiz-choice";
+        btn.innerHTML = renderRich(String(choice), true);
+        btn.addEventListener("click", () => {
+          if (answered[qi]) return; // locked after first answer
+          answered[qi] = true;
+          const right = ci === q.answer;
+          if (right) correct++;
+          btn.classList.add(right ? "correct" : "incorrect");
+          // Reveal the correct choice when the pick was wrong.
+          if (!right) {
+            const all = card.querySelectorAll(".sb-quiz-choice");
+            if (all[q.answer]) all[q.answer].classList.add("correct");
+          }
+          card.querySelectorAll(".sb-quiz-choice").forEach((b) =>
+            b.classList.add("locked"));
+          if (q.explain) explain.hidden = false;
+          card.classList.add(right ? "answered-right" : "answered-wrong");
+          updateScore();
+        });
+        card.appendChild(btn);
+      });
+
+      card.appendChild(explain);
+      node.appendChild(card);
+    });
+
+    node.appendChild(summary);
+
+    const reset = document.createElement("button");
+    reset.type = "button";
+    reset.className = "sb-quiz-reset";
+    reset.textContent = "Reset";
+    reset.addEventListener("click", () => buildQuiz(node, spec));
+    node.appendChild(reset);
+  }
+
+  /* ```reveal — try-then-reveal. Shows a prompt and a button that toggles the
+   * answer. No grading: the user thinks/attempts, then reveals to self-check.
+   * Spec: { title?, items: [ { q, a } ] }  (a bare { q, a } is also accepted).
+   * `q` and `a` render as full blocks so answers can be multi-step derivations
+   * with display math, lists, and code. */
+  function buildReveal(node, spec) {
+    const items = spec.items ||
+      (spec.q || spec.a ? [{ q: spec.q, a: spec.a }] : []);
+    node.innerHTML = "";
+    if (spec.title) {
+      const t = document.createElement("div");
+      t.className = "sb-quiz-title";
+      t.innerHTML = renderRich(spec.title, true);
+      node.appendChild(t);
+    }
+    items.forEach((it) => {
+      const card = document.createElement("div");
+      card.className = "sb-reveal-item";
+      if (it.q != null && it.q !== "") {
+        const q = document.createElement("div");
+        q.className = "sb-reveal-q";
+        q.innerHTML = renderRich(String(it.q), false);
+        card.appendChild(q);
+      }
+      const ans = document.createElement("div");
+      ans.className = "sb-reveal-a";
+      ans.hidden = true;
+      ans.innerHTML = renderRich(String(it.a || ""), false);
+
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "sb-reveal-btn";
+      const setLabel = () => {
+        btn.textContent = ans.hidden ? "Reveal answer" : "Hide answer";
+        btn.classList.toggle("open", !ans.hidden);
+      };
+      setLabel();
+      btn.addEventListener("click", () => {
+        ans.hidden = !ans.hidden;
+        setLabel();
+      });
+      card.appendChild(btn);
+      card.appendChild(ans);
+      node.appendChild(card);
+    });
+  }
+
+  /* ```flashcard — a flip deck for active recall. One card at a time; click the
+   * card (or press Enter/Space) to flip front↔back; Prev/Next to navigate.
+   * Spec: { title?, shuffle?, cards: [ { front, back } ] }  (a bare
+   * { front, back } is also accepted). Faces render as full blocks. */
+  function buildFlashcard(node, spec) {
+    const cards = (spec.cards ||
+      (spec.front || spec.back ? [{ front: spec.front, back: spec.back }] : []))
+      .slice();
+    if (spec.shuffle) shuffleInPlace(cards);
+    if (!cards.length) { node.innerHTML = ""; return; }
+    let idx = 0, flipped = false;
+
+    node.innerHTML = "";
+    const head = document.createElement("div");
+    head.className = "sb-quiz-head";
+    const title = document.createElement("div");
+    title.className = "sb-quiz-title";
+    title.innerHTML = renderRich(spec.title || "Flashcards", true);
+    const counter = document.createElement("div");
+    counter.className = "sb-quiz-score";
+    head.appendChild(title);
+    head.appendChild(counter);
+    node.appendChild(head);
+
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "sb-flash-card";
+    card.setAttribute("aria-live", "polite");
+
+    function show() {
+      const c = cards[idx] || {};
+      const face = flipped ? c.back : c.front;
+      card.innerHTML =
+        '<div class="sb-flash-face">' + renderRich(String(face || ""), false) +
+        '</div><div class="sb-flash-hint">' +
+        (flipped ? "back · click to flip" : "front · click to flip") + "</div>";
+      card.classList.toggle("flipped", flipped);
+      counter.textContent = (idx + 1) + " / " + cards.length;
+    }
+    card.addEventListener("click", () => { flipped = !flipped; show(); });
+    node.appendChild(card);
+
+    const nav = document.createElement("div");
+    nav.className = "sb-flash-nav";
+    const mkNav = (label, fn) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "sb-quiz-reset";
+      b.textContent = label;
+      b.addEventListener("click", fn);
+      return b;
+    };
+    const go = (delta) => {
+      idx = (idx + delta + cards.length) % cards.length;
+      flipped = false;
+      show();
+    };
+    nav.appendChild(mkNav("‹ Prev", () => go(-1)));
+    nav.appendChild(mkNav("Flip", () => { flipped = !flipped; show(); }));
+    nav.appendChild(mkNav("Next ›", () => go(1)));
+    node.appendChild(nav);
+
+    show();
+  }
+
   /* Block-level patch: replace only the top-level children that actually
    * changed, so the page doesn't flash and scroll position is preserved.
    * This is a pragmatic structural diff, not a full virtual DOM — good enough
@@ -264,6 +533,14 @@
         contentEl.appendChild(n);
         n.classList && n.classList.add("sb-changed");
         renderMermaid(n);
+      } else if (
+        c.dataset && n.dataset && c.dataset.key &&
+        c.dataset.key === n.dataset.key
+      ) {
+        // Same stateful widget (e.g. a ```quiz): keep the live, hydrated node
+        // so the user's answers/score survive re-renders triggered elsewhere.
+        // A genuine edit changes the key (hash of the spec) and falls through.
+        continue;
       } else if (c.outerHTML !== n.outerHTML) {
         contentEl.replaceChild(n, c);
         n.classList && n.classList.add("sb-changed");
@@ -299,26 +576,35 @@
     return { text: t, math };
   }
 
+  /* Render a markdown+math string to HTML. `inline` uses renderInline (no
+   * wrapping <p>, for quiz prompts/choices); otherwise full block render.
+   * Math is pre-extracted (see extractMath) and swapped to KaTeX afterward,
+   * exactly as the main board does — so quiz text supports `$..$`, `$$..$$`,
+   * `code`, and emphasis with the same fidelity as the board body. */
+  function renderRich(src, inline) {
+    const { text, math } = extractMath(src);
+    const html = inline ? md.renderInline(text) : md.render(text);
+    return html.replace(MATH_RE, (_, i) => {
+      const m = math[+i];
+      if (!m) return "";
+      if (window.katex) {
+        try {
+          return window.katex.renderToString(
+            m.tex,
+            Object.assign({ displayMode: m.display }, katexOpts),
+          );
+        } catch (e) {
+          return '<span class="sb-error">' + md.utils.escapeHtml(String(e)) + "</span>";
+        }
+      }
+      return md.utils.escapeHtml(m.tex);
+    });
+  }
+
   function render(raw) {
     try {
-      const { text, math } = extractMath(raw);
-      let html = md.render(text);
-      html = html.replace(MATH_RE, (_, i) => {
-        const m = math[+i];
-        if (!m) return "";
-        if (window.katex) {
-          try {
-            return window.katex.renderToString(
-              m.tex,
-              Object.assign({ displayMode: m.display }, katexOpts),
-            );
-          } catch (e) {
-            return '<span class="sb-error">' + md.utils.escapeHtml(String(e)) + "</span>";
-          }
-        }
-        return md.utils.escapeHtml(m.tex);
-      });
-      patch(html);
+      patch(renderRich(raw, false));
+      hydrateWidgets(contentEl);
       return true;
     } catch (e) {
       contentEl.innerHTML =

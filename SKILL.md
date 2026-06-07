@@ -97,6 +97,8 @@ they share one server.
 - **Code** fenced blocks with a language tag get syntax highlighting.
 - **Diagrams**: fenced ```mermaid blocks render as SVG (flowcharts, sequence,
   state). For **physics / vector / free-body diagrams** use ```diagram (below).
+- **Interactive quizzes**: fenced ```quiz blocks render as a clickable
+  multiple-choice widget with instant feedback and a live score (below).
 - **Images**: reference files served from the project; or use absolute URLs.
 
 ## Vector / physics diagrams — ```diagram
@@ -148,6 +150,108 @@ Notes:
 - Invalid JSON shows an inline error on the board, so iterate freely.
 - For anything the spec can't express, a raw ```svg fence is also rendered
   (sanitized) — write SVG directly.
+
+## Interactive quizzes — ```quiz
+
+For **clickable multiple-choice quizzes** (instant right/wrong feedback, live
+score, per-question explanations), use a ```quiz fence containing a JSON spec.
+The board builds a real interactive widget — **do not** fall back to a separate
+HTML page; the board renders this natively and keeps it live.
+
+````
+```quiz
+{
+  "title": "lvalues vs rvalues in C++",   // optional
+  "shuffle": false,                         // optional: randomize question order
+  "questions": [
+    {
+      "q": "Given `int x = 5;`, the expression `x` is a(n)…",
+      "choices": ["lvalue", "rvalue", "neither"],
+      "answer": 0,                          // index into choices of the correct one
+      "explain": "`x` names an object with an address, so it is an lvalue."
+    },
+    {
+      "q": "What category is the literal `5` in `int x = 5;`?",
+      "choices": ["lvalue", "prvalue", "xvalue"],
+      "answer": 1,
+      "explain": "Literals like `5` are prvalues — they have no address you can take."
+    }
+  ]
+}
+```
+````
+
+Notes:
+- `q`, each `choices` entry, and `explain` are **rendered as inline markdown +
+  LaTeX**, so you can write `` `code` ``, `$T\&$`, `$$...$$`, **bold**, etc.
+  inside them — ideal for "which type is `std::move(x)`?" or math questions.
+- `answer` is the **zero-based index** of the correct choice.
+- Clicking a choice locks the question, marks it correct/incorrect, reveals the
+  correct answer (if the pick was wrong) and the explanation, and updates the
+  running score. A **Reset** button restarts the quiz.
+- A quiz keeps its answered/score state even as you `append` more content to the
+  board, so you can teach, then drop a quiz, then keep teaching without wiping it.
+- Invalid JSON shows an inline error, so iterate freely — same as ```diagram.
+
+## Try-then-reveal — ```reveal
+
+For open questions where there are no neat multiple-choice options (derivations,
+"what's the next step?", "name the theorem"), use ```reveal. It shows the prompt
+and a **Reveal answer** button so the user can *think and attempt first*, then
+self-check. There is intentionally **no grading or input box** — if the user
+wants to know why their attempt was wrong, they just ask you.
+
+````
+```reveal
+{
+  "title": "Try it first",                  // optional
+  "items": [
+    {
+      "q": "Solve for $m$: $F_H = m\\,g\\,\\sin\\alpha$.",
+      "a": "$$m = \\frac{F_H}{g\\,\\sin\\alpha}$$ With $F_H=10.0$, $\\alpha=30°$: $m = 2.04$ kg."
+    }
+  ]
+}
+```
+````
+
+Notes:
+- `q` and `a` render as **full markdown blocks**, so an answer can be a multi-step
+  derivation with `$$display math$$`, lists, and ```code fences```.
+- A bare `{ "q": ..., "a": ... }` (no `items`) is accepted for a single reveal.
+- The button toggles (Reveal ↔ Hide). Use this liberally in worked problems:
+  pose the step, let the user try, then they reveal.
+
+## Flashcards — ```flashcard
+
+For active-recall drilling of definitions/formulas (e.g. C++ value categories,
+big-O of operations), use ```flashcard — a flip deck. One card at a time; click
+the card (or Enter/Space) to flip front↔back; **Prev / Flip / Next** to navigate.
+
+````
+```flashcard
+{
+  "title": "C++ value categories",           // optional
+  "shuffle": false,                            // optional
+  "cards": [
+    { "front": "What is an **xvalue**?",
+      "back": "An *eXpiring* value — e.g. the result of `std::move(x)`; it can be moved from." },
+    { "front": "Category of a string literal `\"hi\"`?",
+      "back": "An **lvalue** (it has static storage and an address)." }
+  ]
+}
+```
+````
+
+Notes:
+- `front` and `back` render as full markdown blocks (math, code, emphasis).
+- A bare `{ "front": ..., "back": ... }` is accepted for a single card.
+- `shuffle: true` randomizes the deck order.
+
+All three interactive widgets (```quiz, ```reveal, ```flashcard) keep their live
+state — answered questions, revealed answers, current card — even as you `append`
+more content to the board. **Don't fall back to a separate HTML page for any of
+these; the board renders them natively.**
 
 ## Lifecycle commands
 
