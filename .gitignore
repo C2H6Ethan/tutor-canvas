@@ -1,0 +1,15 @@
+# Runtime / OS
+.DS_Store
+*.log
+
+# Python
+__pycache__/
+*.pyc
+
+# Per-project board content (never committed; lives in the *user's* project)
+.study-board/
+
+# Server runtime state (lives in ~/.cache, but ignore locally just in case)
+.cache/
+
+# NOTE: assets/ IS committed on purpose (vendored libs for offline use).
