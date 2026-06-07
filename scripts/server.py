@@ -23,6 +23,7 @@ directly:
 from __future__ import annotations
 
 import argparse
+import mimetypes
 import os
 import sys
 from functools import partial
@@ -38,6 +39,7 @@ class BoardHandler(SimpleHTTPRequestHandler):
     """
 
     content_path: Path  # set on the partial
+    assets_path: Path  # skill assets dir (sibling of web root), set on the partial
 
     # Silence the default noisy per-request logging.
     def log_message(self, *args, **kwargs):  # noqa: D401, ANN001
@@ -68,6 +70,17 @@ class BoardHandler(SimpleHTTPRequestHandler):
         if path == "/__alive":
             self._send_text(200, b"ok", "text/plain")
             return
+        # Vendored assets live in the skill's assets/ dir (sibling of web root).
+        if path.startswith("/assets/"):
+            rel = path[len("/assets/"):]
+            target = (self.assets_path / rel).resolve()
+            # Path-traversal guard: must stay inside assets_path.
+            if self.assets_path.resolve() in target.parents and target.is_file():
+                ctype = mimetypes.guess_type(str(target))[0] or "application/octet-stream"
+                self._send_text(200, target.read_bytes(), ctype)
+            else:
+                self._send_text(404, b"not found", "text/plain")
+            return
         # Everything else is a normal static file from the web root.
         super().do_GET()
 
@@ -76,10 +89,15 @@ def serve(web_root: Path, content_path: Path, port: int, host: str = "127.0.0.1"
     web_root = web_root.resolve()
     content_path = content_path.resolve()
     os.chdir(web_root)
+    assets_path = (web_root.parent / "assets").resolve()
     handler = partial(BoardHandler, directory=str(web_root))
     # Attach content_path onto the partial's resulting instances via a subclass
     # trick: bind it as a class attribute on a per-call subclass.
-    handler_cls = type("BoundBoardHandler", (BoardHandler,), {"content_path": content_path})
+    handler_cls = type(
+        "BoundBoardHandler",
+        (BoardHandler,),
+        {"content_path": content_path, "assets_path": assets_path},
+    )
     bound = partial(handler_cls, directory=str(web_root))
     httpd = ThreadingHTTPServer((host, port), bound)
     httpd.serve_forever()
