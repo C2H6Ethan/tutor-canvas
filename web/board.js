@@ -26,6 +26,16 @@
   let mermaidReady = false;
   let mermaidSeq = 0;
 
+  const katexOpts = {
+    throwOnError: false,
+    errorColor: "#e0564a",
+    macros: { "\\RR": "\\mathbb{R}" },
+  };
+  // Pipe-free, alnum sentinel so math placeholders survive markdown-it (incl.
+  // inside table cells) without being mistaken for column separators.
+  const mathToken = (i) => "xsbmathx" + i + "xsbmathx";
+  const MATH_RE = /xsbmathx(\d+)xsbmathx/g;
+
   function setStatus(cls, text) {
     statusEl.className = cls;
     statusEl.textContent = text;
@@ -55,18 +65,13 @@
       },
     });
 
-    // Math via texmath + KaTeX. texmath is exposed as `window.texmath`.
-    if (window.texmath && window.katex) {
-      md.use(window.texmath, {
-        engine: window.katex,
-        delimiters: ["dollars", "brackets"], // $..$, $$..$$, \(..\), \[..\]
-        katexOptions: {
-          throwOnError: false,
-          errorColor: "#e0564a",
-          macros: { "\\RR": "\\mathbb{R}" },
-        },
-      });
-    }
+    // Math is intentionally NOT handled by a markdown-it plugin. texmath
+    // tokenizes math at the *inline* level, which runs AFTER the block-level
+    // table parser — so a `|` inside a cell's math (e.g. an absolute value
+    // $|x|$) gets miscounted as a column separator and silently breaks the
+    // whole table. Instead we pre-extract math spans before markdown parsing
+    // (see extractMath/render) and render them with KaTeX afterward, so the
+    // pipes are gone before tables are parsed.
 
     // Mark fenced ```mermaid blocks so we can post-process them.
     const defaultFence =
@@ -150,9 +155,48 @@
     }
   }
 
+  /* Pull math (and protect code) out of the raw markdown BEFORE markdown-it
+   * parses it. Code is stashed first so a `$` inside a code block/span is never
+   * mistaken for math; it is then restored as text so markdown-it can still
+   * highlight it. Math becomes a pipe-free alnum token that survives table
+   * parsing; the actual TeX is rendered by KaTeX after markdown-it runs. */
+  function extractMath(raw) {
+    const code = [];
+    const stashCode = (m) => "\u0000C" + (code.push(m) - 1) + "\u0000";
+    let t = raw.replace(/```[\s\S]*?```|~~~[\s\S]*?~~~/g, stashCode);
+    t = t.replace(/`[^`\n]*`/g, stashCode);
+
+    const math = [];
+    const push = (tex, display) => mathToken(math.push({ tex, display }) - 1);
+    t = t.replace(/\$\$([\s\S]+?)\$\$/g, (_, x) => push(x, true));
+    t = t.replace(/\\\[([\s\S]+?)\\\]/g, (_, x) => push(x, true));
+    t = t.replace(/\$([^\n$]+?)\$/g, (_, x) => push(x, false));
+    t = t.replace(/\\\(([\s\S]+?)\\\)/g, (_, x) => push(x, false));
+
+    // Restore code text so markdown-it renders/highlights it normally.
+    t = t.replace(/\u0000C(\d+)\u0000/g, (_, i) => code[+i]);
+    return { text: t, math };
+  }
+
   function render(raw) {
     try {
-      const html = md.render(raw);
+      const { text, math } = extractMath(raw);
+      let html = md.render(text);
+      html = html.replace(MATH_RE, (_, i) => {
+        const m = math[+i];
+        if (!m) return "";
+        if (window.katex) {
+          try {
+            return window.katex.renderToString(
+              m.tex,
+              Object.assign({ displayMode: m.display }, katexOpts),
+            );
+          } catch (e) {
+            return '<span class="sb-error">' + md.utils.escapeHtml(String(e)) + "</span>";
+          }
+        }
+        return md.utils.escapeHtml(m.tex);
+      });
       patch(html);
       return true;
     } catch (e) {

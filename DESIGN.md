@@ -12,9 +12,36 @@ cannot render LaTeX, so `$$\frac{...}{...}$$` is unreadable. A working prototype
 the concept but was fragile. This skill turns it into a robust, reusable,
 distributable Claude Code skill.
 
-## Decision 1 — Rendering stack: markdown-it + markdown-it-texmath + KaTeX
+## Decision 1 — Rendering stack: markdown-it + pre-extracted KaTeX
 
-**Chosen.** Plus highlight.js (code) and Mermaid (diagrams).
+**Chosen.** Math is pre-extracted from the raw markdown and rendered with KaTeX
+*after* markdown-it runs. Plus highlight.js (code) and Mermaid (diagrams).
+
+> **Revision (math handling).** This originally used `markdown-it-texmath` (math
+> as inline markdown rules). That fixed the emphasis bug but had a worse failure:
+> texmath tokenizes at the **inline** level, which runs *after* the block-level
+> **table** parser. A `|` inside a cell's math (e.g. an absolute value `$|x|$`,
+> common in exam tables) was therefore counted as a column separator, the column
+> count stopped matching the `|---|` row, and markdown-it silently rendered the
+> whole table as raw text. The fix below pre-extracts math (incl. its pipes)
+> *before* any markdown parsing, so tables — and the emphasis case — both work.
+
+### How it works now (`board.js` → `extractMath` + `render`)
+
+1. Stash fenced/inline **code** to sentinels first, so a `$` inside code is never
+   treated as math; restore the code text before `md.render` so highlight.js
+   still runs on it.
+2. Replace each math span (`$$..$$`, `\[..\]`, `$..$`, `\(..\)`) with a
+   **pipe-free alnum placeholder** (`xsbmathx<i>xsbmathx`) and stash its TeX.
+   Because the placeholder has no `|`, `_`, or `*`, it survives table parsing and
+   emphasis untouched.
+3. `md.render()` the placeholder'd text → correct tables, lists, emphasis, code.
+4. Swap each placeholder for `katex.renderToString(tex, {displayMode})` in the
+   resulting HTML.
+
+This is a *full-string* pre-extraction done at the right layer (before any
+parsing), not the prototype's brittle post-hoc masking — it has a single,
+well-defined ordering and no nesting/escaping ambiguity for the delimiters used.
 
 ### The bug we had to fix
 
