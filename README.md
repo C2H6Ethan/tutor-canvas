@@ -23,8 +23,8 @@ This is a **user-level** Claude Code skill. Install it by symlinking the repo
 into your skills directory:
 
 ```bash
-git clone https://github.com/C2H6Ethan/tutor-canvas.git ~/Code/tutor-canvas
-~/Code/tutor-canvas/scripts/install.sh   # vendors assets + symlinks the skill
+git clone https://github.com/C2H6Ethan/tutor-canvas.git
+tutor-canvas/scripts/install.sh   # vendors assets + symlinks the skill
 ```
 
 `install.sh`:
@@ -166,14 +166,6 @@ tutor-canvas/
 
 To change a vendored version, edit `scripts/vendor.sh`, re-run it, and commit
 the updated `assets/`.
-
-## Slotting into `everything-claude-code`
-
-This skill is structured to drop into the ECC skill collection: a single
-self-contained `SKILL.md` with a precise auto-invoke `description`, bundled
-assets, and helper scripts with no external runtime beyond `python3`. It would
-live as `skills/tutor-canvas/` in ECC; `install.sh`/`vendor.sh` map onto ECC's
-per-skill setup conventions. The MIT license matches.
 
 ## License
 
