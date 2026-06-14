@@ -274,7 +274,8 @@
       parts.push('<line x1="' + from[0] + '" y1="' + Y(from[1]) + '" x2="' + ex +
         '" y2="' + Y(ey) + '" ' + stroke(v.color, 2.5) + "/>");
       // arrowhead (filled triangle aligned to the vector)
-      parts.push(arrowHead(ex, ey, Math.cos(a), Math.sin(a), col));
+      const ux = Math.cos(a), uy = Math.sin(a);
+      parts.push(arrowHead(ex, ey, ux, uy, col));
       if (v.label) {
         parts.push('<text x="' + (ex + 8 * ux) + '" y="' + (Y(ey + 8 * uy) - 4) +
           '" fill="' + col + '" font-size="15" font-style="italic" text-anchor="middle">' +

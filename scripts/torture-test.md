@@ -95,7 +95,25 @@ flowchart TD
 }
 ```
 
-## 9. Blockquote + emphasis
+## 9. Force diagram — labeled vectors + angle arc
+
+```diagram
+{
+  "w": 380, "h": 240,
+  "segments": [
+    {"a": [30,40], "b": [350,40], "color": "gray", "width": 2},
+    {"a": [30,40], "b": [300,190], "color": "gray", "width": 2}
+  ],
+  "arcs": [ {"at": [30,40], "from": 0, "to": 29, "label": "α", "r": 50, "color": "yellow"} ],
+  "vectors": [
+    {"from": [180,120], "deg": 270, "mag": 70, "label": "mg", "color": "gray"},
+    {"from": [180,120], "deg": 119, "mag": 56, "label": "N",  "color": "blue"}
+  ],
+  "points": [ {"at": [180,120], "label": "m", "color": "white"} ]
+}
+```
+
+## 10. Blockquote + emphasis
 
 > **Keyword "systematischer"** → worst case, *sum of absolute values*.
 
