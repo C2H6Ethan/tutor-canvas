@@ -161,6 +161,15 @@ img { max-width: 100%; border-radius: 8px; }
   border-radius: 10px;
   padding: 8px;
 }
+/* Halo behind every diagram label so lines/curves never cut through the text.
+   The stroke matches the svg background and is painted under the fill, knocking
+   out whatever it overlaps. Covers axis/tick/vector/curve/arc/point labels. */
+.sb-svg svg text {
+  paint-order: stroke;
+  stroke: #11141c;
+  stroke-width: 3.5px;
+  stroke-linejoin: round;
+}
 
 /* Interactive ```quiz widget. */
 .sb-quiz {
