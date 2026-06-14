@@ -77,7 +77,25 @@ flowchart TD
 }
 ```
 
-## 8. Blockquote + emphasis
+## 8. Plot with axes + sampled f(x)
+
+```diagram
+{
+  "w": 440, "h": 300,
+  "axes": {
+    "origin": [50, 40], "grid": true,
+    "x": {"to": 410, "label": "x", "ticks": [{"at": 230, "label": "x*"}]},
+    "y": {"to": 270, "label": "y", "ticks": [{"at": 150, "label": "y*"}]}
+  },
+  "curves": [
+    {"fn": "40 + 0.0016*(x-50)*(x-50)", "domain": [50,410], "color": "blue", "label": "x²"},
+    {"fn": "150 + 70*sin((x-50)/45)", "domain": [50,410], "color": "green",
+     "dash": true, "label": "sin"}
+  ]
+}
+```
+
+## 9. Blockquote + emphasis
 
 > **Keyword "systematischer"** → worst case, *sum of absolute values*.
 

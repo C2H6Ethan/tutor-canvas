@@ -127,8 +127,8 @@ iterate freely. The two common cases are inline below; **for the full field list
 curve options, and the `reveal` / `flashcard` widgets, read
 `$SKILL/REFERENCE.md`.**
 
-**` ```diagram `** — force/free-body/vector figures and smooth curves
-(supply/demand, `f(x)`). Coordinates are `[x,y]` in **pixels from the
+**` ```diagram `** — force/free-body/vector figures, smooth curves, and `f(x)`
+plots with labeled axes. Coordinates are `[x,y]` in **pixels from the
 BOTTOM-LEFT, y UP** (renderer flips y); angles are **degrees CCW from +x**
 (east=0, north=90, west=180, south=270; gravity `deg:270`):
 
@@ -148,8 +148,10 @@ BOTTOM-LEFT, y UP** (renderer flips y); angles are **degrees CCW from +x**
 }
 ```
 ````
-Also available (see `REFERENCE.md`): `segments`, `arcs`, `points`, `labels`,
-`w`/`h`, `origin`, curve `arrow`/`type`/`labelAt`, and a raw ` ```svg ` fence.
+Also available (see `REFERENCE.md`): `axes` (labeled/ticked/grid axes for plots),
+a curve `fn` form (`{"fn":"100-0.5*x","domain":[x0,x1]}` to plot f(x)), plus
+`segments`, `arcs`, `points`, `labels`, `w`/`h`, `origin`, curve
+`arrow`/`type`/`labelAt`, and a raw ` ```svg ` fence.
 
 **` ```quiz `** — clickable multiple-choice with instant feedback + live score.
 `q`, choices, and `explain` render markdown+LaTeX. `answer` is the **0-based

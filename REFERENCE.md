@@ -24,6 +24,11 @@ shows an inline error on bad JSON, so iterate freely.
   "w": 420, "h": 320,                      // canvas size (default 420x300)
   "ground": 60,                            // draw a horizontal ground line at y=60
                                            //   (true = mid-canvas)
+  "axes": {                                // coordinate axes for plots (below)
+    "origin": [40, 40], "grid": true,
+    "x": {"to": 400, "label": "Q", "ticks": [{"at": 200, "label": "Q*"}]},
+    "y": {"to": 280, "label": "P", "ticks": [{"at": 160, "label": "P*"}]}
+  },
   "origin": [250, 200],                    // default start point for vectors (default: center)
   "vectors": [                             // arrows (force diagrams)
     {"deg": 225, "mag": 110, "label": "F_S", "color": "red"},
@@ -63,6 +68,26 @@ Notes:
   - `arrow`: `"end"` | `"both"` | `"none"` (default none) adds arrowhead(s) at
     the curve's end tangents. `label` sits at the last point unless you pass an
     explicit `labelAt: [x, y]`. `color` defaults gray, `width` to 2.
+- **Plot `f(x)` with `fn`** instead of `points`: a curve can be
+  `{"fn": "100 - 0.5*x", "domain": [x0, x1], "samples": 40, ...}`. The expression
+  is evaluated over `domain` (in pixels, same space as everything — x is the
+  pixel x, the result is the pixel y) at `samples`+1 points (default 40) and
+  drawn as a polyline (set `"type": "spline"` to smooth it). Non-finite samples
+  (poles, NaN) are skipped. All other curve fields (`color`, `label`, `dash`,
+  `shift`, `arrow`) apply. Allowed in `fn`: numbers, `x`, `+ - * / %`, `^` (power),
+  parentheses, and `sin cos tan asin acos atan exp sqrt abs ln log pow min max
+  floor ceil round PI E` — anything else makes the curve render an inline error.
+- **`axes`** draws coordinate axes for plots (object, optional):
+  - `origin: [x, y]` pixel corner where the axes meet (default `[40, 40]`).
+  - `x` / `y` each `{to, label?, arrow?, ticks?}`: `to` is the pixel end of that
+    axis (defaults near the canvas edge); `label` is text at the tip; `arrow`
+    defaults true (set false to omit the arrowhead); `ticks` is a list of pixel
+    positions, each either a number or `{at, label}` — the `label` is text you
+    supply (a data value or a name like `Q*`), drawn by the tick.
+  - `grid: true` extends each tick into a dashed gridline across the plot.
+  - `color` sets the axis/tick color (default gray).
+  - Coordinates are pixels like everything else, so a `fn`/`curves`/`points`
+    plotted in the same canvas lines up with the axes directly.
 - Invalid JSON shows an inline error on the board, so iterate freely.
 - For anything the spec can't express, a raw ```svg fence is also rendered
   (sanitized) — write SVG directly.

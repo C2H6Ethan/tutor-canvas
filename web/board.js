@@ -61,6 +61,28 @@
     return String(s).replace(/[<>&"]/g, (c) =>
       ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c]));
   }
+  // Compile a whitelisted arithmetic expression in `x` (for ```diagram curve
+  // `fn` plotting) into a JS function. The spec is author-written and local, but
+  // we still restrict it to numbers, `x`, the basic operators, and a fixed set
+  // of Math functions — no property access, no globals — so a stray spec can't
+  // run arbitrary code. Returns null on anything outside the whitelist.
+  const FN_NAMES = ["sin", "cos", "tan", "asin", "acos", "atan", "exp", "sqrt",
+    "abs", "ln", "log", "pow", "min", "max", "floor", "ceil", "round", "PI", "E"];
+  function compileFn(expr) {
+    const e = String(expr).replace(/\s+/g, "").replace(/\^/g, "**");
+    const stripped = e.replace(new RegExp(FN_NAMES.join("|") + "|x", "g"), "");
+    if (/[^0-9.+\-*/%(),]/.test(stripped)) return null; // disallowed token
+    try {
+      const f = new Function("x", ...FN_NAMES, "return (" + e + ");");
+      const M = Math, vals = [M.sin, M.cos, M.tan, M.asin, M.acos, M.atan, M.exp,
+        M.sqrt, M.abs, M.log, (v) => M.log(v) / M.LN10, M.pow, M.min, M.max,
+        M.floor, M.ceil, M.round, M.PI, M.E];
+      f(1, ...vals); // probe once so a malformed body fails here, not mid-render
+      return (x) => f(x, ...vals);
+    } catch (err) {
+      return null;
+    }
+  }
   // Stable, short hash of a string (djb2). Used to key interactive widgets so
   // the structural patch can recognize "the same quiz" across re-renders and
   // preserve its live state instead of rebuilding it from scratch.
@@ -117,6 +139,48 @@
       parts.push('<line x1="0" y1="' + Y(gy) + '" x2="' + w + '" y2="' + Y(gy) +
         '" ' + stroke("#3a4150", 2) + "/>");
     }
+    // axes: {origin?:[x,y], x?:{to,label?,arrow?,ticks?}, y?:{...}, grid?, color?}
+    //   Ticks/grid are at pixel positions (same space as every other primitive);
+    //   tick labels are author-supplied text (data values or names like Q*/P*).
+    if (spec.axes) {
+      const ax = spec.axes, col = ax.color || "#9aa3b2", dc = diagColor(col);
+      const O = ax.origin || [40, 40], ox = O[0], oy = O[1];
+      const AX = ax.x || {}, AY = ax.y || {};
+      const xEnd = AX.to != null ? AX.to : w - 10;
+      const yEnd = AY.to != null ? AY.to : h - 10;
+      parts.push('<line x1="' + ox + '" y1="' + Y(oy) + '" x2="' + xEnd +
+        '" y2="' + Y(oy) + '" ' + stroke(col, 1.5) + "/>");
+      parts.push('<line x1="' + ox + '" y1="' + Y(oy) + '" x2="' + ox +
+        '" y2="' + Y(yEnd) + '" ' + stroke(col, 1.5) + "/>");
+      if (AX.arrow !== false) parts.push(arrowHead(xEnd, oy, 1, 0, dc));
+      if (AY.arrow !== false) parts.push(arrowHead(ox, yEnd, 0, 1, dc));
+      if (AX.label) parts.push('<text x="' + xEnd + '" y="' + (Y(oy) + 16) +
+        '" fill="' + dc + '" font-size="14" font-style="italic" text-anchor="end">' +
+        esc(AX.label) + "</text>");
+      if (AY.label) parts.push('<text x="' + (ox - 6) + '" y="' + (Y(yEnd) + 2) +
+        '" fill="' + dc + '" font-size="14" font-style="italic" text-anchor="end">' +
+        esc(AY.label) + "</text>");
+      (AX.ticks || []).forEach((t) => {
+        const at = typeof t === "number" ? t : t.at;
+        const lab = typeof t === "number" ? null : t.label;
+        parts.push('<line x1="' + at + '" y1="' + Y(oy - 4) + '" x2="' + at +
+          '" y2="' + Y(oy + 4) + '" ' + stroke(col, 1) + "/>");
+        if (ax.grid) parts.push('<line x1="' + at + '" y1="' + Y(oy) + '" x2="' +
+          at + '" y2="' + Y(yEnd) + '" ' + stroke(col, 0.75, true) + "/>");
+        if (lab != null) parts.push('<text x="' + at + '" y="' + (Y(oy - 8)) +
+          '" fill="' + dc + '" font-size="12" text-anchor="middle">' + esc(lab) + "</text>");
+      });
+      (AY.ticks || []).forEach((t) => {
+        const at = typeof t === "number" ? t : t.at;
+        const lab = typeof t === "number" ? null : t.label;
+        parts.push('<line x1="' + (ox - 4) + '" y1="' + Y(at) + '" x2="' + (ox + 4) +
+          '" y2="' + Y(at) + '" ' + stroke(col, 1) + "/>");
+        if (ax.grid) parts.push('<line x1="' + ox + '" y1="' + Y(at) + '" x2="' +
+          xEnd + '" y2="' + Y(at) + '" ' + stroke(col, 0.75, true) + "/>");
+        if (lab != null) parts.push('<text x="' + (ox - 8) + '" y="' + (Y(at) + 4) +
+          '" fill="' + dc + '" font-size="12" text-anchor="end">' + esc(lab) + "</text>");
+      });
+    }
     // free segments: {a:[x,y], b:[x,y], color?, dash?, width?}
     (spec.segments || []).forEach((s) => {
       parts.push('<line x1="' + s.a[0] + '" y1="' + Y(s.a[1]) + '" x2="' +
@@ -125,8 +189,26 @@
     // smooth curves: {points:[[x,y],...], type?, shift?, color?, width?, dash?,
     //   arrow?:"end"|"both"|"none", label?, labelAt?:[x,y]}. `points` are knots
     //   the curve passes through; `shift` translates the whole curve.
+    //   Alternatively {fn:"100-0.5*x", domain:[x0,x1], samples?} plots f(x) by
+    //   sampling the expression into points (pixel space, same as everything).
     (spec.curves || []).forEach((c) => {
-      let pts = c.points || [];
+      let pts;
+      if (c.fn) {
+        const f = compileFn(c.fn);
+        if (!f) {
+          parts.push('<text x="8" y="' + (h - 8) + '" fill="#e0564a" font-size="13">' +
+            "bad fn: " + esc(String(c.fn)) + "</text>");
+          return;
+        }
+        const dom = c.domain || [0, w], steps = c.samples || 40;
+        pts = [];
+        for (let i = 0; i <= steps; i++) {
+          const x = dom[0] + (dom[1] - dom[0]) * i / steps, y = f(x);
+          if (isFinite(x) && isFinite(y)) pts.push([x, y]); // skip poles/NaN
+        }
+      } else {
+        pts = c.points || [];
+      }
       if (c.shift) pts = pts.map((p) => [p[0] + c.shift[0], p[1] + c.shift[1]]);
       if (pts.length < 2) {
         parts.push('<text x="8" y="' + (h - 8) +
@@ -134,9 +216,12 @@
         return;
       }
       const col = diagColor(c.color || "#9aa3b2");
-      const d = c.type === "line"
-        ? "M " + pts.map((p) => p[0] + " " + Y(p[1])).join(" L ")
-        : catmullRom(pts);
+      // Sampled fn data is already dense -> default to a polyline; hand-authored
+      // knots default to a smooth spline. `type` overrides either way.
+      const useSpline = c.fn ? c.type === "spline" : c.type !== "line";
+      const d = useSpline
+        ? catmullRom(pts)
+        : "M " + pts.map((p) => p[0] + " " + Y(p[1])).join(" L ");
       parts.push('<path d="' + d + '" fill="none" ' +
         stroke(c.color || "#9aa3b2", c.width, c.dash) + "/>");
       // arrowheads, aligned to the curve's end tangents
