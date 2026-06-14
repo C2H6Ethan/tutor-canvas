@@ -666,6 +666,38 @@
     show();
   }
 
+  /* Columns layout: wrap each heading (h2/h3) plus the blocks that follow it
+   * into a <section> so a column break never splits a title from its content
+   * (CSS break-after:avoid is unreliable in multicol). h1/hr stay loose and
+   * span all columns. Each section is keyed by a hash of its contents so the
+   * structural patch preserves unchanged sections (and their live widgets). */
+  function groupSections(html) {
+    const tpl = document.createElement("template");
+    tpl.innerHTML = html;
+    const out = document.createElement("div");
+    let sec = null;
+    Array.from(tpl.content.childNodes).forEach((node) => {
+      const tag = node.nodeType === 1 ? node.tagName : "";
+      if (tag === "H2" || tag === "H3") {
+        sec = document.createElement("section");
+        sec.className = "sb-sec";
+        out.appendChild(sec);
+        sec.appendChild(node);
+      } else if (tag === "H1" || tag === "HR") {
+        sec = null;
+        out.appendChild(node);
+      } else if (sec) {
+        sec.appendChild(node);
+      } else {
+        out.appendChild(node); // content before the first heading
+      }
+    });
+    out.querySelectorAll("section.sb-sec").forEach((s) => {
+      s.dataset.key = "sec-" + hashStr(s.innerHTML);
+    });
+    return out.innerHTML;
+  }
+
   /* Block-level patch: replace only the top-level children that actually
    * changed, so the page doesn't flash and scroll position is preserved.
    * This is a pragmatic structural diff, not a full virtual DOM — good enough
@@ -762,7 +794,9 @@
       const cols = m ? Math.min(Math.max(parseInt(m[1] || "2", 10), 2), 4) : 0;
       contentEl.className = cols ? "cols cols-" + cols : "";
       if (m) raw = raw.replace(m[0], "");
-      patch(renderRich(raw, false));
+      let html = renderRich(raw, false);
+      if (cols) html = groupSections(html); // keep each heading with its content
+      patch(html);
       hydrateWidgets(contentEl);
       return true;
     } catch (e) {
