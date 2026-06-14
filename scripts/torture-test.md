@@ -58,7 +58,26 @@ flowchart TD
     E --> F[Result m ± Δm]
 ```
 
-## 7. Blockquote + emphasis
+## 7. Diagram with smooth curves (AD/AS + shift)
+
+```diagram
+{
+  "w": 420, "h": 300,
+  "segments": [
+    {"a": [50,30], "b": [50,270], "color": "gray", "width": 1},
+    {"a": [50,30], "b": [400,30], "color": "gray", "width": 1}
+  ],
+  "curves": [
+    {"points": [[70,250],[210,150],[370,70]], "color": "blue", "label": "AD", "arrow": "end"},
+    {"points": [[70,70],[210,150],[370,250]], "color": "red", "label": "AS"},
+    {"points": [[70,70],[210,150],[370,250]], "color": "green", "dash": true,
+     "shift": [-40, 0], "label": "AS'"}
+  ],
+  "points": [ {"at": [210,150], "label": "E", "color": "white"} ]
+}
+```
+
+## 8. Blockquote + emphasis
 
 > **Keyword "systematischer"** → worst case, *sum of absolute values*.
 

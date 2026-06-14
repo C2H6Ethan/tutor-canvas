@@ -153,8 +153,13 @@ hand-writing SVG, and it renders real arrows and angle arcs.
     {"deg": 80,  "mag": 90,  "label": "F_A", "color": "blue"},
     {"deg": 270, "mag": 95,  "label": "mg",  "color": "gray", "from": [250,200]}
   ],
-  "segments": [                            // plain lines (arm, rope, incline, ground)
+  "segments": [                            // plain STRAIGHT lines (arm, rope, incline)
     {"a": [110,60], "b": [250,200], "color": "red", "dash": true, "width": 2}
+  ],
+  "curves": [                              // smooth curves (supply/demand, f(x))
+    {"points": [[60,90],[210,150],[360,250]], "color": "blue", "label": "AD"},
+    {"points": [[60,250],[210,150],[360,90]], "color": "red", "label": "AS",
+     "shift": [-40, 0]}                     // shift moves the WHOLE curve (a shock)
   ],
   "arcs": [                                // angle markers
     {"at": [110,60], "from": 0, "to": 45, "label": "β", "r": 26, "color": "gray"}
@@ -170,6 +175,17 @@ Notes:
   outside the canvas is clipped) — bump `h`/`w` or shrink `mag` if a label clips.
 - A `vector`'s tail is `from` if given, else `origin`. End = tail +
   `mag·(cos deg, sin deg)`.
+- `curves` draw a **smooth Catmull-Rom spline through the `points` you give**
+  (knots the curve passes through — *not* Bézier handles), so you can author
+  "curve through (a,b),(c,d),(e,f)" without solving for control points. Exactly
+  2 points degrades to a straight line; `type: "line"` forces a plain polyline.
+  - **`shift: [dx, dy]`** translates the whole curve before drawing — so "AS
+    shifts left by 40" is `"shift": [-40, 0]` instead of recomputing every knot.
+    This is the operation econ diagrams need most (a shock just translates a
+    curve), so prefer it over editing coordinates.
+  - `arrow`: `"end"` | `"both"` | `"none"` (default none) adds arrowhead(s) at
+    the curve's end tangents. `label` sits at the last point unless you pass an
+    explicit `labelAt: [x, y]`. `color` defaults gray, `width` to 2.
 - Invalid JSON shows an inline error on the board, so iterate freely.
 - For anything the spec can't express, a raw ```svg fence is also rendered
   (sanitized) — write SVG directly.

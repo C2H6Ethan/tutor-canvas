@@ -6,7 +6,9 @@ a second so you can actually *read* the math the terminal can't show.
 
 - **LaTeX** via KaTeX (matrices, `\frac`, `\partial`, `\underbrace`, `aligned`, …)
 - **Tables**, **syntax-highlighted code**, **Mermaid diagrams**, images
-- **Vector / physics diagrams** from a compact JSON spec (` ```diagram `)
+- **Vector / physics diagrams** from a compact JSON spec (` ```diagram `) —
+  arrows, angle arcs, and **smooth curves** (supply/demand, f(x)) with a `shift`
+  to translate a whole curve in one edit
 - **Interactive widgets** — clickable multiple-choice quizzes with a live score
   and auto-shuffled choices (` ```quiz `), try-then-reveal answers
   (` ```reveal `), and flip flashcards (` ```flashcard `)

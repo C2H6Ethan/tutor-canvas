@@ -86,6 +86,30 @@
     const stroke = (col, sw, dash) =>
       'stroke="' + diagColor(col) + '" stroke-width="' + (sw || 2) + '"' +
       (dash ? ' stroke-dasharray="6 4"' : "");
+    // Filled arrowhead at (ex,ey) pointing along unit dir (ux,uy). Shared by
+    // vectors and curve arrows; y is flipped via Y like every other primitive.
+    const arrowHead = (ex, ey, ux, uy, col) => {
+      const ah = 10, aw = 5, px = -uy, py = ux;
+      const bx = ex - ah * ux, by = ey - ah * uy;
+      return '<polygon points="' + ex + "," + Y(ey) + " " +
+        (bx + aw * px) + "," + Y(by + aw * py) + " " +
+        (bx - aw * px) + "," + Y(by - aw * py) + '" fill="' + col + '"/>';
+    };
+    // Catmull-Rom spline through the given knots -> cubic-Bezier path. Authors
+    // give points the curve passes THROUGH (not Bezier handles); endpoints are
+    // duplicated so the ends aren't clipped. Points are pre-flipped to screen
+    // space, which is fine since the conversion is affine.
+    function catmullRom(pts) {
+      const P = pts.map((p) => [p[0], Y(p[1])]);
+      let d = "M " + P[0][0] + " " + P[0][1];
+      for (let i = 0; i < P.length - 1; i++) {
+        const p0 = P[i - 1] || P[i], p1 = P[i], p2 = P[i + 1], p3 = P[i + 2] || P[i + 1];
+        d += " C " + (p1[0] + (p2[0] - p0[0]) / 6) + " " + (p1[1] + (p2[1] - p0[1]) / 6) +
+          " " + (p2[0] - (p3[0] - p1[0]) / 6) + " " + (p2[1] - (p3[1] - p1[1]) / 6) +
+          " " + p2[0] + " " + p2[1];
+      }
+      return d;
+    }
 
     // ground line
     if (spec.ground) {
@@ -97,6 +121,44 @@
     (spec.segments || []).forEach((s) => {
       parts.push('<line x1="' + s.a[0] + '" y1="' + Y(s.a[1]) + '" x2="' +
         s.b[0] + '" y2="' + Y(s.b[1]) + '" ' + stroke(s.color, s.width, s.dash) + "/>");
+    });
+    // smooth curves: {points:[[x,y],...], type?, shift?, color?, width?, dash?,
+    //   arrow?:"end"|"both"|"none", label?, labelAt?:[x,y]}. `points` are knots
+    //   the curve passes through; `shift` translates the whole curve.
+    (spec.curves || []).forEach((c) => {
+      let pts = c.points || [];
+      if (c.shift) pts = pts.map((p) => [p[0] + c.shift[0], p[1] + c.shift[1]]);
+      if (pts.length < 2) {
+        parts.push('<text x="8" y="' + (h - 8) +
+          '" fill="#e0564a" font-size="13">curve needs &#8805;2 points</text>');
+        return;
+      }
+      const col = diagColor(c.color || "#9aa3b2");
+      const d = c.type === "line"
+        ? "M " + pts.map((p) => p[0] + " " + Y(p[1])).join(" L ")
+        : catmullRom(pts);
+      parts.push('<path d="' + d + '" fill="none" ' +
+        stroke(c.color || "#9aa3b2", c.width, c.dash) + "/>");
+      // arrowheads, aligned to the curve's end tangents
+      const unit = (i, j) => {
+        const dx = pts[j][0] - pts[i][0], dy = pts[j][1] - pts[i][1];
+        const L = Math.hypot(dx, dy) || 1;
+        return [dx / L, dy / L];
+      };
+      const n = pts.length;
+      if (c.arrow === "end" || c.arrow === "both") {
+        const [ux, uy] = unit(n - 2, n - 1);
+        parts.push(arrowHead(pts[n - 1][0], pts[n - 1][1], ux, uy, col));
+      }
+      if (c.arrow === "both") {
+        const [ux, uy] = unit(1, 0);
+        parts.push(arrowHead(pts[0][0], pts[0][1], ux, uy, col));
+      }
+      if (c.label) {
+        const lp = c.labelAt || [pts[n - 1][0] + 8, pts[n - 1][1] + 8];
+        parts.push('<text x="' + lp[0] + '" y="' + Y(lp[1]) + '" fill="' + col +
+          '" font-size="15" font-style="italic">' + esc(c.label) + "</text>");
+      }
     });
     // angle arcs: {at:[x,y], r?, from:deg, to:deg, label?, color?}
     (spec.arcs || []).forEach((a) => {
@@ -127,14 +189,7 @@
       parts.push('<line x1="' + from[0] + '" y1="' + Y(from[1]) + '" x2="' + ex +
         '" y2="' + Y(ey) + '" ' + stroke(v.color, 2.5) + "/>");
       // arrowhead (filled triangle aligned to the vector)
-      const ah = 10, aw = 5;
-      const ux = Math.cos(a), uy = Math.sin(a), px = -uy, py = ux;
-      const bx = ex - ah * ux, by = ey - ah * uy;
-      const p1 = ex + "," + Y(ey);
-      const p2 = (bx + aw * px) + "," + Y(by + aw * py);
-      const p3 = (bx - aw * px) + "," + Y(by - aw * py);
-      parts.push('<polygon points="' + p1 + " " + p2 + " " + p3 +
-        '" fill="' + col + '"/>');
+      parts.push(arrowHead(ex, ey, Math.cos(a), Math.sin(a), col));
       if (v.label) {
         parts.push('<text x="' + (ex + 8 * ux) + '" y="' + (Y(ey + 8 * uy) - 4) +
           '" fill="' + col + '" font-size="15" font-style="italic" text-anchor="middle">' +
