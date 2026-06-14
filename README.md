@@ -1,5 +1,10 @@
 # tutor-canvas
 
+<p align="center">
+  <img src="assets/hero.png" width="100%"
+       alt="A tutor-canvas board: rendered LaTeX, an f(x) plot with labeled axes, an incline force diagram, an interactive multiple-choice quiz, try-then-reveal and flashcard widgets, a table, syntax-highlighted code, and a Mermaid diagram — laid out in columns.">
+</p>
+
 A live, browser-based **tutor canvas** for Claude Code tutoring sessions. Claude
 writes markdown + LaTeX to a content file; a local page re-renders it about once
 a second so you can actually *read* the math the terminal can't show.
