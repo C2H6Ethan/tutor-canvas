@@ -46,6 +46,41 @@ main {
 #status.connecting::before { color: var(--warn); }
 #status.stale::before, #status.error::before { color: var(--err); }
 
+/* Board tabs (shown only when a project has more than one board). */
+#boards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 1.2em;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.sb-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--card);
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 11px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.sb-tab:hover { color: var(--ink); }
+.sb-tab.active {
+  color: var(--ink);
+  border-color: var(--accent);
+  background: #1b2436;
+}
+.sb-tab-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
 h1, h2, h3, h4 { line-height: 1.25; }
 h1 { font-size: 1.7em; border-bottom: 2px solid var(--line); padding-bottom: .3em; }
 h2 { font-size: 1.35em; color: var(--accent); margin-top: 1.6em; }

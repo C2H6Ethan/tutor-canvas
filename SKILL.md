@@ -72,9 +72,12 @@ $$m = \frac{10.0}{4.905} = 2.04\ \text{kg}$$
 MD
 ```
 
-**Replace vs append:** prefer `push` to set/refresh the whole board at the start
-of a problem, then `append` each new step as you teach so prior steps stay
-visible and scroll position is preserved. Use `clear` to reset.
+**Default to `append`; treat `push`/`clear` as a reset the user asked for.**
+The board is something the user reads and scrolls back through, so do **not**
+overwrite it just to add the next step — a `push` wipes everything above and can
+destroy earlier work the user wanted to keep. Use `push` only once at the very
+start of a fresh problem (or when the user explicitly wants to start over), then
+`append` for everything after. `clear` empties the board — only on request.
 
 You can also just write the file directly — `board.py path` tells you where it
 is. Either way the browser picks up changes within ~1 second.
@@ -82,8 +85,28 @@ is. Either way the browser picks up changes within ~1 second.
 ### Multiple boards
 
 Pass `--name <board>` to keep several boards for one project (e.g.
-`--name physics`, `--name parprog`). Each name is an independent content file;
-they share one server.
+`--name physics`, `--name parprog`). Each name is an independent content file.
+The single project server serves **all** of them, and the page shows a **tab
+bar** to switch between boards. When you push to a board, the page auto-switches
+to it (live-teaching flow); the user can click another tab to pin their view to
+an older board while you keep pushing — that board then shows an "updated" dot
+instead of stealing focus.
+
+**Before creating a new named board, run `list` and continue an existing one if
+it fits** — otherwise a new session will keep spawning fresh boards (or
+overwrite `board.md`) instead of resuming the one the user was reading:
+
+```bash
+python3 "$SKILL/scripts/board.py" list   # -> board, atomics, vwl
+# resume the existing 'vwl' board rather than making a new file:
+cat <<'MD' | python3 "$SKILL/scripts/board.py" append --name vwl
+## Next point
+...
+MD
+```
+
+`push`/`append` print where the content went and warn if no server is running
+for the project, so a write never disappears silently.
 
 ## Content you can use
 
@@ -163,6 +186,8 @@ HTML page; the board renders this natively and keeps it live.
 {
   "title": "lvalues vs rvalues in C++",   // optional
   "shuffle": false,                         // optional: randomize question order
+  "shuffleChoices": true,                   // optional, DEFAULT TRUE: randomize
+                                            //   choice order per question
   "questions": [
     {
       "q": "Given `int x = 5;`, the expression `x` is a(n)…",
@@ -185,7 +210,14 @@ Notes:
 - `q`, each `choices` entry, and `explain` are **rendered as inline markdown +
   LaTeX**, so you can write `` `code` ``, `$T\&$`, `$$...$$`, **bold**, etc.
   inside them — ideal for "which type is `std::move(x)`?" or math questions.
-- `answer` is the **zero-based index** of the correct choice.
+- `answer` is the **zero-based index** of the correct choice **in the `choices`
+  array as you wrote it**. You do *not* need to vary where you place the correct
+  choice: `shuffleChoices` is **on by default**, so the board permutes the
+  choices at render time and remaps `answer` — the displayed position is
+  randomized per question even if you always write the answer first. (Set
+  `"shuffleChoices": false` only when order is meaningful, e.g. "put these steps
+  in order" or numeric ranges that should stay sorted.) Note `shuffle` controls
+  *question* order only and does **not** affect choice positions.
 - Clicking a choice locks the question, marks it correct/incorrect, reveals the
   correct answer (if the pick was wrong) and the explanation, and updates the
   running score. A **Reset** button restarts the quiz.
@@ -258,6 +290,7 @@ these; the board renders them natively.**
 ```bash
 python3 "$SKILL/scripts/board.py" status   # running? url? content path?
 python3 "$SKILL/scripts/board.py" url      # just the URL
+python3 "$SKILL/scripts/board.py" list     # boards that exist for this project
 python3 "$SKILL/scripts/board.py" stop     # stop this project's board
 python3 "$SKILL/scripts/board.py" clear    # reset content to empty
 ```

@@ -9,6 +9,7 @@ Subcommands
     push     Replace the board content with stdin / a file / a string.
     append   Append to the board content.
     clear    Reset the board to an empty state.
+    list     List the boards that already exist for this project.
     path     Print the absolute path of the active content file.
     url      Print the board URL.
     open     Start if needed, then open the board in the default browser.
@@ -263,6 +264,36 @@ def _resolve_content(args) -> Path:
     return content
 
 
+def _write_hint(args) -> None:
+    """Tell the caller where the content went — and warn if nothing serves it.
+
+    Closes the "silent write into the void" gap: a push/append to a board whose
+    project has no running server used to succeed with no feedback at all.
+    """
+    state = _read_state(_board_key(Path(args.project)))
+    if _running(state):
+        print(f"board '{args.name}' updated — {state['url']}", file=sys.stderr)
+    else:
+        print(
+            f"warning: no board server running for this project; "
+            f"run 'start' to view board '{args.name}'",
+            file=sys.stderr,
+        )
+
+
+def cmd_list(args) -> int:
+    """List the boards (``.tutor-canvas/*.md``) that exist for this project.
+
+    Run this before creating a new named board so you continue an existing one
+    instead of spawning a duplicate.
+    """
+    d = Path(args.project).resolve() / ".tutor-canvas"
+    if d.exists():
+        for f in sorted(d.glob("*.md")):
+            print(f.stem)
+    return 0
+
+
 def _input_text(args) -> str:
     if args.file:
         return Path(args.file).read_text()
@@ -274,6 +305,7 @@ def _input_text(args) -> str:
 def cmd_push(args) -> int:
     content = _resolve_content(args)
     content.write_text(_input_text(args))
+    _write_hint(args)
     return 0
 
 
@@ -286,6 +318,7 @@ def cmd_append(args) -> int:
         fh.write(text)
         if not text.endswith("\n"):
             fh.write("\n")
+    _write_hint(args)
     return 0
 
 
@@ -317,27 +350,36 @@ Waiting for content. The board updates automatically about once per second.
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="board", description=__doc__)
     p.add_argument("--project", default=os.getcwd(), help="project dir (board identity)")
-    p.add_argument("--name", default="board", help="board name (for multiple boards)")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    s = sub.add_parser("start")
+    # `--name` selects which board within the project. It belongs on the
+    # subparsers (via a shared parent) so the natural `push --name vwl` form —
+    # the one the docs use — parses; argparse only accepts a top-level option
+    # *before* the subcommand, which is an easy footgun.
+    name_parent = argparse.ArgumentParser(add_help=False)
+    name_parent.add_argument(
+        "--name", default="board", help="board name (for multiple boards)"
+    )
+
+    s = sub.add_parser("start", parents=[name_parent])
     s.add_argument("--port", type=int, default=DEFAULT_PORT)
     s.add_argument("--quiet", action="store_true")
     s.set_defaults(func=cmd_start)
 
-    o = sub.add_parser("open")
+    o = sub.add_parser("open", parents=[name_parent])
     o.add_argument("--port", type=int, default=DEFAULT_PORT)
     o.add_argument("--quiet", action="store_true")
     o.set_defaults(func=cmd_open)
 
     sub.add_parser("stop").set_defaults(func=cmd_stop)
     sub.add_parser("status").set_defaults(func=cmd_status)
-    sub.add_parser("path").set_defaults(func=cmd_path)
+    sub.add_parser("list").set_defaults(func=cmd_list)
+    sub.add_parser("path", parents=[name_parent]).set_defaults(func=cmd_path)
     sub.add_parser("url").set_defaults(func=cmd_url)
-    sub.add_parser("clear").set_defaults(func=cmd_clear)
+    sub.add_parser("clear", parents=[name_parent]).set_defaults(func=cmd_clear)
 
     for name, fn in (("push", cmd_push), ("append", cmd_append)):
-        c = sub.add_parser(name)
+        c = sub.add_parser(name, parents=[name_parent])
         c.add_argument("--file", help="read content from this file")
         c.add_argument("--text", help="literal content string")
         c.set_defaults(func=fn)

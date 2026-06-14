@@ -23,27 +23,64 @@ directly:
 from __future__ import annotations
 
 import argparse
+import json
 import mimetypes
 import os
+import re
 import sys
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs
 
 
 class BoardHandler(SimpleHTTPRequestHandler):
-    """Serve the web root, but route ``/board.md`` to the active content file.
+    """Serve the web root, plus the project's boards under ``.tutor-canvas/``.
 
-    ``content_path`` is injected via ``functools.partial`` so each server
-    instance can point at a different content file.
+    One server per project serves *every* board in ``boards_dir`` so the UI can
+    tab between them:
+      * ``/board.md?name=<board>`` returns that board's markdown (defaults to
+        ``default_name`` when no ``name`` is given).
+      * ``/boards`` lists the available boards (name + mtime) as JSON so the UI
+        can render tabs and auto-follow whichever board was most recently
+        updated.
+
+    ``boards_dir`` / ``default_name`` are injected via a per-call subclass.
     """
 
-    content_path: Path  # set on the partial
+    content_path: Path  # the default board's file, set on the subclass
+    boards_dir: Path  # dir holding <name>.md board files, set on the subclass
+    default_name: str  # board served when no ?name= is given, set on the subclass
     assets_path: Path  # skill assets dir (sibling of web root), set on the partial
+
+    # Board names are single path segments — no separators, no traversal.
+    _NAME_RE = re.compile(r"^[A-Za-z0-9_-][A-Za-z0-9_.-]*$")
 
     # Silence the default noisy per-request logging.
     def log_message(self, *args, **kwargs):  # noqa: D401, ANN001
         pass
+
+    def _read_board(self, name: str) -> bytes:
+        if not self._NAME_RE.match(name or "") or ".." in name:
+            return b"# Invalid board name\n"
+        try:
+            return (self.boards_dir / f"{name}.md").read_bytes()
+        except FileNotFoundError:
+            return (
+                b"# Waiting for content\n\n"
+                b"No content has been pushed to this board yet.\n"
+            )
+
+    def _boards_json(self) -> bytes:
+        boards = []
+        try:
+            for f in sorted(self.boards_dir.glob("*.md")):
+                boards.append({"name": f.stem, "mtime": f.stat().st_mtime})
+        except OSError:
+            pass
+        return json.dumps(
+            {"default": self.default_name, "boards": boards}
+        ).encode("utf-8")
 
     def _send_text(self, status: int, body: bytes, ctype: str) -> None:
         self.send_response(status)
@@ -56,16 +93,16 @@ class BoardHandler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self) -> None:  # noqa: N802
-        path = self.path.split("?", 1)[0]
+        raw = self.path.split("?", 1)
+        path = raw[0]
+        query = parse_qs(raw[1]) if len(raw) > 1 else {}
         if path in ("/board.md", "/board"):
-            try:
-                data = self.content_path.read_bytes()
-            except FileNotFoundError:
-                data = (
-                    b"# Waiting for content\n\n"
-                    b"No content has been pushed to this board yet.\n"
-                )
+            name = (query.get("name") or [self.default_name])[0]
+            data = self._read_board(name)
             self._send_text(200, data, "text/markdown; charset=utf-8")
+            return
+        if path == "/boards":
+            self._send_text(200, self._boards_json(), "application/json; charset=utf-8")
             return
         if path == "/__alive":
             self._send_text(200, b"ok", "text/plain")
@@ -96,7 +133,12 @@ def serve(web_root: Path, content_path: Path, port: int, host: str = "127.0.0.1"
     handler_cls = type(
         "BoundBoardHandler",
         (BoardHandler,),
-        {"content_path": content_path, "assets_path": assets_path},
+        {
+            "content_path": content_path,
+            "boards_dir": content_path.parent,
+            "default_name": content_path.stem,
+            "assets_path": assets_path,
+        },
     )
     bound = partial(handler_cls, directory=str(web_root))
     httpd = ThreadingHTTPServer((host, port), bound)

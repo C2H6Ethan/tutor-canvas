@@ -364,21 +364,31 @@
       explain.hidden = true;
       if (q.explain) explain.innerHTML = renderRich(q.explain, true);
 
-      (q.choices || []).forEach((choice, ci) => {
+      // Permute the choice order so the correct answer is not always in the
+      // same slot (authors tend to put it first). Defaults ON; set
+      // "shuffleChoices": false on the quiz to keep the authored order.
+      // `answer` stays a zero-based index into the ORIGINAL choices array — the
+      // remap below keeps it correct regardless of the displayed order.
+      const choices = q.choices || [];
+      const order = choices.map((_, i) => i);
+      if (spec.shuffleChoices !== false) shuffleInPlace(order);
+      const correctPos = order.indexOf(q.answer); // displayed slot of the answer
+
+      order.forEach((srcIdx) => {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "sb-quiz-choice";
-        btn.innerHTML = renderRich(String(choice), true);
+        btn.innerHTML = renderRich(String(choices[srcIdx]), true);
         btn.addEventListener("click", () => {
           if (answered[qi]) return; // locked after first answer
           answered[qi] = true;
-          const right = ci === q.answer;
+          const right = srcIdx === q.answer;
           if (right) correct++;
           btn.classList.add(right ? "correct" : "incorrect");
-          // Reveal the correct choice when the pick was wrong.
+          // Reveal the correct choice (in its displayed slot) when wrong.
           if (!right) {
             const all = card.querySelectorAll(".sb-quiz-choice");
-            if (all[q.answer]) all[q.answer].classList.add("correct");
+            if (all[correctPos]) all[correctPos].classList.add("correct");
           }
           card.querySelectorAll(".sb-quiz-choice").forEach((b) =>
             b.classList.add("locked"));
@@ -615,15 +625,99 @@
     }
   }
 
+  /* ---- multi-board tabs ----------------------------------------------------
+   * One server serves every board under the project's .tutor-canvas/ dir. We
+   * poll /boards for the list (name + mtime), render a tab bar, and by default
+   * AUTO-FOLLOW whichever board was most recently updated — the natural flow
+   * when a tutoring session is actively pushing to one board. Clicking a tab
+   * pins your view to that board (so you can read an older board while pushes
+   * continue elsewhere); other boards then show a "updated" dot instead of
+   * stealing focus. */
+  const boardsEl = document.getElementById("boards");
+  let activeBoard = null;       // board whose content is currently shown
+  let manualPin = false;        // true once the user clicks a tab
+  let boards = [];              // [{name, mtime}] from /boards
+  const seenMtime = {};        // last mtime we've shown/acknowledged per board
+
+  function newestBoard() {
+    let best = null;
+    for (const b of boards) {
+      if (!best || b.mtime > best.mtime) best = b;
+    }
+    return best;
+  }
+
+  function renderTabs() {
+    if (boards.length <= 1) { boardsEl.hidden = true; boardsEl.innerHTML = ""; return; }
+    boardsEl.hidden = false;
+    boardsEl.innerHTML = "";
+    for (const b of boards) {
+      const tab = document.createElement("button");
+      tab.type = "button";
+      tab.className = "sb-tab" + (b.name === activeBoard ? " active" : "");
+      tab.textContent = b.name;
+      // Dot when a non-active board has changed since we last looked at it.
+      if (b.name !== activeBoard && b.mtime > (seenMtime[b.name] || 0)) {
+        const dot = document.createElement("span");
+        dot.className = "sb-tab-dot";
+        tab.appendChild(dot);
+      }
+      tab.addEventListener("click", () => {
+        manualPin = true;
+        if (b.name !== activeBoard) setActive(b.name);
+      });
+      boardsEl.appendChild(tab);
+    }
+  }
+
+  function setActive(name) {
+    activeBoard = name;
+    const b = boards.find((x) => x.name === name);
+    if (b) seenMtime[name] = b.mtime;
+    lastRaw = null; // force a re-render of the new board's content
+    renderTabs();
+    tick();
+  }
+
+  async function pollBoards() {
+    try {
+      const r = await fetch("/boards?_=" + Date.now());
+      if (!r.ok) return;
+      const data = await r.json();
+      boards = (data.boards || []);
+      if (activeBoard === null) {
+        // First load: show the most recently updated board (fall back to the
+        // server default), so a session resumes the board it was using.
+        const start = newestBoard();
+        activeBoard = start ? start.name : (data.default || "board");
+        const b0 = boards.find((x) => x.name === activeBoard);
+        if (b0) seenMtime[activeBoard] = b0.mtime;
+      } else if (!manualPin) {
+        // Auto-follow: jump to a board that just got newer than what we've seen.
+        const newest = newestBoard();
+        if (newest && newest.name !== activeBoard &&
+            newest.mtime > (seenMtime[newest.name] || 0)) {
+          setActive(newest.name);
+          return;
+        }
+      }
+      renderTabs();
+    } catch (e) { /* leave tabs as-is on a transient error */ }
+  }
+
   async function tick() {
     try {
-      const r = await fetch("/board.md?_=" + Date.now());
+      const name = activeBoard || "board";
+      const r = await fetch("/board.md?name=" + encodeURIComponent(name) +
+        "&_=" + Date.now());
       if (!r.ok) throw new Error("HTTP " + r.status);
       const txt = await r.text();
       setStatus("live", "live");
       if (txt !== lastRaw) {
         lastRaw = txt;
         render(txt);
+        const b = boards.find((x) => x.name === activeBoard);
+        if (b) seenMtime[activeBoard] = b.mtime; // we've now seen this content
       }
     } catch (e) {
       setStatus("stale", "disconnected");
@@ -640,8 +734,9 @@
     }
     initMarkdown();
     setStatus("connecting", "connecting");
-    tick();
+    pollBoards().then(tick);
     setInterval(tick, POLL_MS);
+    setInterval(pollBoards, POLL_MS);
   }
 
   // `defer` scripts run in order before this, but guard anyway.
