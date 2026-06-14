@@ -168,7 +168,8 @@ markdown-it + pre-extracted KaTeX fixes it at the root).
 
 ```
 tutor-canvas/
-├── SKILL.md            # agent-facing instructions + auto-invoke description
+├── SKILL.md            # agent-facing instructions (lean; loaded on trigger)
+├── REFERENCE.md        # full diagram/widget JSON specs (read on demand)
 ├── README.md           # this file
 ├── DESIGN.md           # architecture decisions & tradeoffs
 ├── LICENSE             # MIT
