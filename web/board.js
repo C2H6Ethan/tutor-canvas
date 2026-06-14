@@ -754,6 +754,14 @@
 
   function render(raw) {
     try {
+      // Optional landscape layout: a `<!-- columns -->` (or `: 3`) directive
+      // anywhere in the content flows the board into balanced newspaper columns
+      // (titles span full width). Off by default — normal boards stay single
+      // column. Strip the marker before rendering so it doesn't show.
+      const m = raw.match(/<!--\s*columns(?::\s*(\d+))?\s*-->/i);
+      const cols = m ? Math.min(Math.max(parseInt(m[1] || "2", 10), 2), 4) : 0;
+      contentEl.className = cols ? "cols cols-" + cols : "";
+      if (m) raw = raw.replace(m[0], "");
       patch(renderRich(raw, false));
       hydrateWidgets(contentEl);
       return true;

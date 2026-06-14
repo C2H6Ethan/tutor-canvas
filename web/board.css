@@ -27,6 +27,21 @@ main {
   margin: 0 auto;
 }
 
+/* Optional landscape layout (enabled by a `<!-- columns -->` directive). Flows
+   the board into balanced columns so a dense board fits a wide screenshot;
+   each block stays intact and headings/rules span the full width. */
+#content.cols {
+  column-gap: 34px;
+  max-width: none;
+}
+main:has(#content.cols) { max-width: 1280px; }
+#content.cols-2 { column-count: 2; }
+#content.cols-3 { column-count: 3; }
+#content.cols-4 { column-count: 4; }
+#content.cols > * { break-inside: avoid; }
+#content.cols > h1,
+#content.cols > hr { column-span: all; }
+
 .muted { color: var(--muted); }
 
 #status {

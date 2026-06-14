@@ -118,6 +118,10 @@ Push markdown with:
 - **Markdown** headings/**bold**/lists/blockquotes/`---`, **tables** (GitHub
   pipe), **code** fences (syntax-highlighted by language tag), **```mermaid**
   diagrams (flowchart/sequence/state), and **images** (project files or URLs).
+- **Layout**: add `<!-- columns: 2 -->` (or `3`/`4`) anywhere in the content to
+  flow the board into balanced columns — good for dense cheat-sheets/dashboards
+  or a wide screenshot; headings and `---` span full width. Single column by
+  default.
 
 ## Diagrams & interactive widgets
 
