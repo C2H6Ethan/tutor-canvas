@@ -175,6 +175,13 @@ the correct option:
 ```
 ````
 
+Distractor quality matters: keep `choices` similar in length/specificity so the
+correct answer isn't identifiable just by being the longest or most detailed
+option. Wrong choices must be plausible — real misconceptions, common errors,
+or near-miss values someone could actually believe — never absurd, off-topic,
+or trivially-false filler (e.g. no "cars evolved biologically over time"
+style throwaway options).
+
 **` ```reveal `** (try-then-reveal, no grading) and **` ```flashcard `** (flip
 deck) — for attempt-first prompts and active-recall drilling; specs in
 `REFERENCE.md`. All widgets keep their live state (answers/score/card) across
